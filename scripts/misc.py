@@ -1,7 +1,43 @@
+import pickle
 import numpy as np
 import pandas as pd
 
 
+
+def open_table(file):
+    """Returns table, agnostic whether file is csv or feather format"""
+    
+    ext = file.split(".")[-1]
+    if ext == "feather":
+        tab = pd.read_feather(file)
+        
+        if "Row" in tab: 
+            tab.set_index("Row", inplace=True)
+        elif "index" in tab: 
+            tab.set_index("index", inplace=True)
+        elif "Term ID" in tab and not tab["Term ID"][0].startswith("hsa"): 
+            tab.set_index("Term ID", inplace=True)
+        elif "Term" in tab: 
+            tab.set_index("Term", inplace=True)
+
+    elif ext == "csv":
+        tab = pd.read_csv(file, index_col=0)
+        
+    else:
+        try:
+            file += ".feather"
+            tab = open_table(file)
+        except FileNotFoundError:
+            file = file.split(".feather")[0]
+            file += ".csv"
+            tab = open_table(file)
+    return tab
+
+def pickler(contents, filepath):
+    """Store arbitrary Python object in filepath"""
+    with open(filepath, "wb") as fp:
+        pickle.dump(contents, fp)   
+        
 def add_metadata_to_multiindex(df, df_meta):
     """Takes a df of count data and adds metadata as a column multiindex.
     
@@ -26,3 +62,64 @@ def add_metadata_to_multiindex(df, df_meta):
                                            + ["Sample"])
     
     return pd.DataFrame(df.values, index=df.index, columns=multi_cols)
+
+
+
+
+# Code below from https://github.com/realpython/codetiming
+
+from contextlib import ContextDecorator
+from dataclasses import dataclass, field
+import time
+from typing import Any, Callable, ClassVar, Dict, Optional
+
+class TimerError(Exception):
+    """A custom exception used to report errors in use of Timer class"""
+
+@dataclass
+class Timer(ContextDecorator):
+    """Time your code using a class, context manager, or decorator"""
+
+    timers: ClassVar[Dict[str, float]] = dict()
+    name: Optional[str] = None
+    text: str = "Elapsed time: {:0.4f} seconds"
+    logger: Optional[Callable[[str], None]] = print
+    _start_time: Optional[float] = field(default=None, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        """Initialization: add timer to dict of timers"""
+        if self.name:
+            self.timers.setdefault(self.name, 0)
+
+    def start(self) -> None:
+        """Start a new timer"""
+        if self._start_time is not None:
+            raise TimerError(f"Timer is running. Use .stop() to stop it")
+
+        self._start_time = time.perf_counter()
+
+    def stop(self) -> float:
+        """Stop the timer, and report the elapsed time"""
+        if self._start_time is None:
+            raise TimerError(f"Timer is not running. Use .start() to start it")
+
+        # Calculate elapsed time
+        elapsed_time = time.perf_counter() - self._start_time
+        self._start_time = None
+
+        # Report elapsed time
+        if self.logger:
+            self.logger(self.text.format(elapsed_time))
+        if self.name:
+            self.timers[self.name] += elapsed_time
+
+        return elapsed_time
+
+    def __enter__(self) -> "Timer":
+        """Start a new timer as a context manager"""
+        self.start()
+        return self
+
+    def __exit__(self, *exc_info: Any) -> None:
+        """Stop the context manager timer"""
+        self.stop()
