@@ -1,7 +1,12 @@
+import glob
+import random
 import pickle
-import numpy as np
+import warnings
+import sys
+import os
 import pandas as pd
-
+import numpy as np
+import cProfile as profile
 
 
 def open_table(file):
@@ -38,6 +43,13 @@ def pickler(contents, filepath):
     with open(filepath, "wb") as fp:
         pickle.dump(contents, fp)   
         
+def profile_func(func, kwargs):
+    prof = profile.Profile()
+    prof.enable()
+    func(**kwargs)
+    prof.disable()
+    return prof
+
 def add_metadata_to_multiindex(df, df_meta):
     """Takes a df of count data and adds metadata as a column multiindex.
     
@@ -63,7 +75,25 @@ def add_metadata_to_multiindex(df, df_meta):
     
     return pd.DataFrame(df.values, index=df.index, columns=multi_cols)
 
+def get_matching_treatment_col_ix(df, control_cols) -> list:
+    """Given list of control col names, return indices of control cols and matching treatment cols"""
+    ix = [df.columns.get_loc(c) for c in control_cols]
+    ix += [c+len(df.columns)//2 for c in ix]
+    return ix
 
+def paired_replicate_sampler(df,n):
+    """
+    Sample a subset of replicates from a paired-design count matrix
+    df : pd.DataFrame, count data with k control columns followed by k case columns, for a total of k patients
+    n : Number of patients to resample, must be <= k
+    """
+    if len(df.columns) % 2 != 0: raise Exception("Input df must have even number of columns (paired-design experiment)")
+    patients = len(df.columns)//2
+    if patients < n: raise Exception("Number of samples must be smaller than total number of replicates!")
+    ind = np.array(random.sample(range(0, patients), n))
+    ind = np.concatenate([ind,ind + patients])
+    ind = np.sort(ind)
+    return df.iloc[:,ind], ind
 
 
 # Code below from https://github.com/realpython/codetiming

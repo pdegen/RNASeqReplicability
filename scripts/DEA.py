@@ -1,3 +1,4 @@
+import os, sys
 import logging
 import pandas as pd
 import rpy2.robjects as ro
@@ -18,9 +19,12 @@ def run_dea(df, outfile, method, overwrite, design="paired", lfc=0, **kwargs):
     kwargs: additional keyword arguments passed to R method
     """
     
+    # This function should be called from a notebook in the notebooks folder, we need to load a script from the scripts folder
+    wd = Path(str(Path(os.getcwd()).parent) + "/scripts/R_functions.r")
+    ro.r['source'](str(wd)) # Loading the R script
     
-    ro.r['source'](str(Path('../scripts/R_functions.R'))) # Loading the R script    
-    df_r = df if isinstance(df, ro.vectors.DataFrame) else pd_to_R(df) # Converting to R dataframe
+    # Converting pd to R dataframe
+    df_r = df if isinstance(df, ro.vectors.DataFrame) else pd_to_R(df)
     
     if method in ["edgerqlf","edgerlrt"]:
         logging.info(f"\nCalling edgeR in R with kwargs:\n{kwargs}\n")
@@ -34,7 +38,8 @@ def run_dea(df, outfile, method, overwrite, design="paired", lfc=0, **kwargs):
         DESeq2 = ro.globalenv['run_deseq2']
         DESeq2(df_r, str(outfile), design, overwrite=overwrite, lfc=lfc, **kwargs)
         
-    else: raise Exception(f"Method {method} not implemented")
+    else: 
+        raise Exception(f"Method {method} not implemented")
     
     
 def run_dea_on_full_data(datasets, DEAs, lfcs, overwrite = False, truncate_cohorts = 0):
@@ -78,7 +83,10 @@ def run_dea_on_full_data(datasets, DEAs, lfcs, overwrite = False, truncate_cohor
 def normalize_counts(df):
     """Use DESeq2 estimateSizeFactors to normalize a count matrix"""
     
-    ro.r['source']('/storage/homefs/pd21v747/RepProject/scripts/R_functions.R') # Loading the R script    
+    # This function should be called from a notebook in the notebooks folder, we need to load a script from the scripts folder
+    wd = Path(str(Path(os.getcwd()).parent) + "/scripts/R_functions.r")
+    ro.r['source'](str(wd)) # Loading the R script
+    
     df_r = df if isinstance(df, ro.vectors.DataFrame) else pd_to_R(df) # Converting to R dataframe
     DESeq2 = ro.globalenv['deseq2']
     sizefactors = DESeq2(df_r, outfile="", design="paired", overwrite=True, 
