@@ -95,6 +95,30 @@ def paired_replicate_sampler(df,n):
     ind = np.sort(ind)
     return df.iloc[:,ind], ind
 
+def get_grid_size(n, k=0, fill=False):
+    """
+    Given interger n, find grid of size l*m = n that comes closest to being a square
+    For k > 0,  returns successively "less square" grids
+    Retruns (l, m)
+    Can be used e.g. for plotting grids
+    If fill, prevents pairs of form (1, m) by adding +1 to n
+    """
+    if n == 1: return (1,1)
+    from sympy import isprime
+    if fill and isprime(n): n+= 1
+    pairs = []
+    for i in reversed(range(1, n)):
+        rows, cols = 0, 0
+        if n % i == 0:
+            cols = i
+            rows = n // i
+            pairs.append((rows,cols))
+
+    pairs = [tuple(sorted(p)) for p in pairs]
+    pairs = list(set(pairs))
+    pairs = sorted(pairs, key=lambda x: np.abs(x[0]-x[1]))
+    try: return pairs[k]
+    except IndexError: return pairs[0]
 
 # Code below from https://github.com/realpython/codetiming
 

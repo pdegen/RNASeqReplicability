@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=00:02:00    # Each task takes max 02 minutes
+#SBATCH --time=00:01:00    # Each task takes max 01 minutes
 #SBATCH --mem-per-cpu=2G   # Each task uses max 2G of memory
 
 n=$(printf "%04d" $SLURM_ARRAY_TASK_ID)

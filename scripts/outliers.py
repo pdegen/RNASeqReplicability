@@ -19,12 +19,12 @@ def get_outlier_patients(df, method, outname="", outpath="", **kwargs) -> list:
     if method == "none":
         return []
     elif method == "jk":
-        outliers = iterative_jackknife(df, outname=outname, path=outpath, DEA="edgeR", **kwargs)
+        outliers = iterative_jackknife(df, outname=outname, path=outpath, DEA="edgerqlf", **kwargs)
     elif method == "pcah":
         outliers = pca_hubert_wrapper(df, control_cols_only=True, **kwargs)
     elif method == "existing":
         
-        slurmfile = f"{outpath}/slurm/slurm-*.{kwargs['original_outlier_method']}.edger.{kwargs['param_set']}.out" 
+        slurmfile = f"{outpath}/slurm/slurm-*.{kwargs['original_outlier_method']}.edgerqlf.{kwargs['param_set']}.out" 
         slurmfile = sorted(glob.glob(slurmfile), reverse=True)[0]
 
         with open(slurmfile, "r") as f:
@@ -87,14 +87,19 @@ def n_DEG_jack_merged(tab, FDR=0.01) -> (np.array, np.array, int):
 
     return ind, n_DEG, unjacked
 
-def jackknife_wrapper(df, outname, path, DEA="edgeR", FDR=0.01, overwrite=False, include_full=True, skip_cols="skip_none", **DEA_kwargs) -> int:
+def jackknife_wrapper(df, outname, path, DEA="edgerqlf", FDR=0.01, overwrite=False, include_full=True, skip_cols="skip_none", **DEA_kwargs) -> int:
     """
     Return exist staus:
     0: jackknife ran succesfully
     1: existing tables found, not overwritten
     """
+    
+    # This function should be called from a notebook in the notebooks folder, we need to load a script from the scripts folder
+    wd = Path(str(Path(os.getcwd()).parent) + "/scripts/R_functions.r")
+    ro.r['source'](str(wd)) # Loading the R script
+    
     df_r = df if isinstance(df, ro.vectors.DataFrame) else pd_to_R(df) # Converting to R dataframe
-    ro.r['source']('/storage/homefs/pd21v747/RepProject/scripts/R_functions.R') # Loading the R script  
+
     jackknife_paired = ro.globalenv['jackknife_paired'] # Finding the R function in the script
     cols_to_keep = DEA_kwargs["cols_to_keep"] if "cols_to_keep" in DEA_kwargs else "all"
     if list(DEA_kwargs.keys()).remove("cols_to_keep") != None: raise exception("DEA_kwargs beyond cols_to_keep not yet implemented for jackknife")
@@ -129,7 +134,7 @@ def jackknife_merger(path, name, cleanup=True) -> pd.DataFrame:
         #logging.info("Removed merged tables")
     return df
 
-def iterative_jackknife(df, outname, path, DEA="edgeR", FDR=0.01, overwrite=False, max_removed_frac=1, efficient=False, 
+def iterative_jackknife(df, outname, path, DEA="edgerqlf", FDR=0.01, overwrite=False, max_removed_frac=1, efficient=False, 
                         tolerance=1, cleanup=True, **DEA_kwargs) -> list:
     """
     Parameters
@@ -231,7 +236,10 @@ def pca_hubert_wrapper(df, k=2, plot=False, control_cols_only=True) -> list:
                        regardless of whether the respective control samples are outliers
     """
     
-    ro.r['source']('/storage/homefs/pd21v747/RepProject/scripts/R_functions.R') # Loading the R script
+    # This function should be called from a notebook in the notebooks folder, we need to load a script from the scripts folder
+    wd = Path(str(Path(os.getcwd()).parent) + "/scripts/R_functions.r")
+    ro.r['source'](str(wd)) # Loading the R script
+    
     pcahubert = ro.globalenv['pcahubert'] # Finding the R function in the script
     df_r = pd_to_R(df)
     outliers = list(pcahubert(df_r,k=k,plot=plot))

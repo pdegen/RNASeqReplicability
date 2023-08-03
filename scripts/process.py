@@ -483,7 +483,7 @@ def process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFC
     
     # Read outliers from slurm file
     logging.info("Processing slurm files...")
-    check_failed_jobs_due_to_time_and_move("/storage/homefs/pd21v747/RepProject/notebooks")
+    check_failed_jobs_due_to_time_and_move("../notebooks")
     results = process_slurm(results, outpath, outname, all_N, DEAs, outlier_methods, param_set, n_cohorts)
     
     # Construct n_patients_df
@@ -620,3 +620,431 @@ def get_init_samples_from_cohort(configfile):
     with open(configfile, "r") as f:
         configdict = json.load(f)    
     return configdict["samples_i"] if "samples_i" in configdict else []
+
+
+###############################################################
+###################### Enrichment #############################
+###############################################################
+
+@Timer(name="decorator")
+def gsea_process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, 
+                          FDRs, gsea_param_set, overwrite=False, overwrite_merged=False, n_cohorts="",calculate_common=True):
+  
+    #### Create or load the results dict
+    
+    resultsfile = f"{outpath}/gsea_results.txt"
+    if not Path(resultsfile).is_file():
+        results = {}
+        pickler(results,resultsfile)
+        overwrite = True
+    elif overwrite:
+        results = {}
+    else:
+        with open(resultsfile, "rb") as f:
+            results = pickle.load(f)
+            
+    check_failed_jobs_due_to_time_and_move("../notebooks")
+    results = update_gsea_results_dict(results, all_N, DEAs, outlier_methods, gsea_methods, libraries, FDRs, overwrite=overwrite)
+    
+    # Process slurm files, check for failed jobs
+    logging.info("Processing slurm files...")
+    #process_gsea_slurm(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, n_cohorts=n_cohorts)
+    
+    if calculate_common:
+        logging.info("Recalculating common terms")
+        calculate_common_fdr(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, gsea_param_set, n_cohorts)
+    
+    # Merge tables from different cohorts
+    if overwrite_merged:
+        logging.info("Merging tables...")
+        merge_gsea_tables(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, gsea_param_set, n_cohorts=n_cohorts)
+        merge_gsea_tables(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, gsea_param_set, n_cohorts=n_cohorts, mode="FDR.common")
+    
+    # Calculate replicability, metrics
+    logging.info("Processing results...")
+    results = process_gsea_results(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, FDRs, gsea_param_set, overwrite=overwrite)
+    
+    logging.info("\nFinish all N jobs before calculating adjusted results...")
+#     # Calculate adjusted replicability, metrics
+#     logging.info("\nProcessing adjusted results...")
+    
+#     # Get n_patients_df
+#     dea_resultsfile = f"{outpath}/results.txt"
+#     with open(dea_resultsfile,"rb") as f:
+#         dea_results = pickle.load(f)
+
+#     for out in outlier_methods:
+#         if out == "none": continue
+#         results["n_patients_df"][out] = dea_results["n_patients_df"][out]
+
+#     results = calc_gsea_rep_same_cohort_size(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, FDRs, gsea_param_set)
+    
+    # Delete redundant slurm files, tmp folders
+    delete_redundant_slurmfiles(outpath, outname, all_N, gsea=True)
+
+    #### Save results
+    
+    pickler(results, resultsfile)
+    logging.info(f"Saved results in {resultsfile}")
+
+
+def update_gsea_results_dict(results, all_N, DEAs, outlier_methods, gsea_methods, libraries, FDRs, overwrite=False) -> dict:
+    """
+    Add missing keys to results dict or create it from scratch
+    """
+    
+    inner = {fdr: None for fdr in FDRs}
+    outer = {"median_rep": deepcopy(inner), 
+             "median_terms": deepcopy(inner), 
+             "median_mcc": deepcopy(inner), 
+             "median_prec": deepcopy(inner), 
+             "median_rec": deepcopy(inner),
+             "median_rep_adj": deepcopy(inner), 
+             "median_terms_adj": deepcopy(inner), 
+             "median_mcc_adj": deepcopy(inner), 
+             "median_prec_adj": deepcopy(inner), 
+             "median_rec_adj": deepcopy(inner),
+             "median_rep_common": deepcopy(inner), 
+             "median_terms_common": deepcopy(inner), 
+             "median_mcc_common": deepcopy(inner), 
+             "median_prec_common": deepcopy(inner), 
+             "median_rec_common": deepcopy(inner),
+             "median_rep_adj_common": deepcopy(inner), 
+             "median_terms_adj_common": deepcopy(inner), 
+             "median_mcc_adj_common": deepcopy(inner), 
+             "median_prec_adj_common": deepcopy(inner), 
+             "median_rec_adj_common": deepcopy(inner)}
+    
+    if overwrite:
+        logging.info("Creating gsea results dict from scratch")
+        results = {N: {out: {dea: {gsea: {library: deepcopy(outer) for library in libraries} for gsea in gsea_methods}  for dea in DEAs} for out in outlier_methods} for N in all_N}
+        results["n_patients_df"] = {out: None for out in outlier_methods if out != "none"}
+        
+    else:
+        logging.info("Checking for missing keys")
+        missing = []
+        
+        for N in all_N:
+            if N not in results:
+                missing.append(N)
+                results[N] = {out: {dea: {gsea: {library: deepcopy(outer) for library in libraries} for gsea in gsea_methods}  for dea in DEAs} for out in outlier_methods}
+                
+            for out in outlier_methods:
+                if out not in results[N].keys():
+                    missing.append(out)
+                    results[N][out] = {dea: {gsea: {library: deepcopy(outer) for library in libraries} for gsea in gsea_methods}  for dea in DEAs}
+                    
+                for dea in DEAs:
+                    if dea not in results[N][out].keys():
+                        missing.append(dea)
+                        results[N][out][dea] = {gsea: {library: deepcopy(outer) for library in libraries} for gsea in gsea_methods}
+                        
+                    for gsea in gsea_methods:
+                        if gsea not in results[N][out][dea].keys():
+                            missiing.append(gsea)
+                            results[N][out][dea][gsea] = {library: deepcopy(outer) for library in libraries}
+                            
+                        for library in libraries:
+                            if library not in results[N][out][dea][gsea].keys():
+                                missing.append(library)
+                                results[N][out][dea][gsea][library] = deepcopy(outer)
+                        
+        if "n_patients_df" not in results:
+            results["n_patients_df"] = {out: None for out in outlier_methods if out != "none"}
+            
+        for out in outlier_methods:
+            if out == "none": continue
+            if out not in results["n_patients_df"]:
+                results["n_patients_df"][out] = None
+                        
+        if len(missing): logging.info(f"New keys appended to results dict: {set(missing)}")
+        else: logging.info("No new keys appended to results dict")
+        
+    return results
+
+def process_gsea_slurm(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, n_cohorts = "") -> dict:
+    """
+    Process the slurm log files: check if any jobs failed
+    """
+
+    total_slurmfiles, failed_slurmfiles = 0, 0
+    
+    for N in all_N:
+        outpath_N = f"{outpath}/{outname}_N{N}"   
+        cohorts = sorted([f.name for f in os.scandir(outpath_N) if f.is_dir()])
+        if n_cohorts == "": n_cohorts = len(cohorts)
+
+        for cohort in cohorts[:n_cohorts]:
+            cohort_id = int(cohort.split("_")[-1])
+            slurmpath = f"{outpath_N}/{cohort}/gsea/slurm"
+            slurmfiles = glob.glob(f"{slurmpath}/slurm-*.out")
+            slurmfiles = sorted(slurmfiles, reverse=True)
+            
+            for slurm in slurmfiles:
+                total_slurmfiles += 1
+                with open(slurm, "r") as f:
+                    lines = f.readlines()
+                    
+                # Look for failed jobs
+                failed = False
+                for line in lines:
+                    if line.find('srun: error:') != -1 or line.find('slurmstepd: error:') != -1:
+                        failed = True
+                        
+                    # If this line is found, it means the code finished successfully despite slurm errors
+                    if line.find('Elapsed time:') != -1:
+                        break
+                else:
+                    if failed:
+                        failed_slurmfiles += 1
+                        logging.info(f"{cohort} {slurm.split('/')[-1]} {line}")     
+
+    logging.info(f"{failed_slurmfiles} jobs failed out of {total_slurmfiles}")        
+    return results
+
+
+def calculate_common_fdr(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, gsea_param_set, n_cohorts=0) -> None:
+    """
+    """
+    
+    file_gobp = Path("../data/multi/common_gobp.txt")
+    file_kegg = Path("../data/multi/common_kegg.txt")
+    with open(file_gobp, "rb") as f:
+        common_gobp = pickle.load(f)
+    with open(file_kegg, "rb") as f:
+        common_kegg = pickle.load(f)
+    
+    for N in all_N:
+        outpath_N = f"{outpath}/{outname}_N{N}"   
+        cohorts = sorted([f.name for f in os.scandir(outpath_N) if f.is_dir()])
+        
+        if n_cohorts < 1: n_cohorts == len(cohorts)
+        
+        for out in outlier_methods:
+            for dea in DEAs:
+                for gsea in gsea_methods:                    
+                    if "s2n" in gsea and dea != "edgerqlf": continue
+                    if "gsea" in gsea: pvalue = "NOM p-val"
+                    else: pvalue = "pvalue"
+                    
+                    for library in libraries:
+                        if library == "GO_Biological_Process_2021": common = common_gobp
+                        elif library == "KEGG_2021_Human": common = common_kegg
+                        else: raise Exception(f"Invalid library: {library}")
+
+                        for cohort in cohorts[:n_cohorts]:
+                            cohort_id = str(int(cohort.split("_")[-1]))
+                            outpath_c = f"{outpath_N}/{cohort}/gsea"
+                            file = f"{outpath_c}/{gsea}.{library}.{dea}.{out}.{gsea_param_set}"
+                            terms = open_table(file)
+                            
+                            if library == "GO_Biological_Process_2021":
+                                ix = common.intersection(terms.index)
+                            elif library == "KEGG_2021_Human":
+                                try:
+                                    ix = terms[terms["Term"].isin(common)].index
+                                except KeyError:
+                                    ix = common.intersection(terms.index)
+                                
+                            #print(len(ix),N,out,dea,gsea,library,cohort)
+                            try:
+                                terms.loc[ix, "FDR.common"] = multipletests(terms.loc[ix, pvalue], method="fdr_bh")[1]
+                            except ZeroDivisionError:
+                                if len(terms) == 1:
+                                    terms.loc[ix, "FDR.common"] = terms.loc[ix, "FDR"]
+                                else:
+                                    display(terms)
+                                    display(ix)
+                                    print(N,out,dea,gsea,library)
+                                    assert 0
+                            terms.reset_index().to_feather(file+".feather")
+                            terms = open_table(file+".feather")
+                            display(file)
+                            
+def merge_gsea_tables(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, gsea_param_set, n_cohorts=0, mode="FDR") -> None:
+    """
+    Merge tables from different cohorts
+    mode: either "FDR" for pipeline-specific ground truth or "FDR.common" for intersection of ground truths
+    """
+    
+    for N in all_N:
+        outpath_N = f"{outpath}/{outname}_N{N}"   
+        cohorts = sorted([f.name for f in os.scandir(outpath_N) if f.is_dir()])
+        
+        if n_cohorts < 1: n_cohorts == len(cohorts)
+        
+        for out in outlier_methods:
+            for dea in DEAs:
+                for gsea in gsea_methods:
+                    if "s2n" in gsea and dea != "edgerqlf": continue
+                    for library in libraries:
+                        list_FDRs, cohort_ids = [], []
+                
+                        for cohort in cohorts[:n_cohorts]:
+                            cohort_id = str(int(cohort.split("_")[-1]))
+                            cohort_ids.append(cohort_id)
+                            outpath_c = f"{outpath_N}/{cohort}/gsea"
+                            tab = open_table(f"{outpath_c}/{gsea}.{library}.{dea}.{out}.{gsea_param_set}")
+                            
+                            ## for ORA KEGG: switch term ID and description for index
+                            if tab.index[0].startswith("hsa") and "Term" in tab:
+                                tab = tab.set_index("Term")
+                            
+                            list_FDRs.append(tab[mode])
+
+                        FDR_concat = pd.concat(list_FDRs, axis=1, keys=cohort_ids).reset_index(drop=False)
+                        FDR_concat.to_feather(f"{outpath_N}/all.{mode}.{gsea}.{library}.{out}.{dea}.{gsea_param_set}.feather")
+                        
+                        
+                        
+def process_gsea_results(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, FDRs, gsea_param_set, overwrite=False) -> dict:
+    """
+    Calcualte median replicability, #DEG, MCC, precision, recall for one dataset
+    """
+    modes = ["FDR", "FDR.common"]
+    truth_dict = {gsea: {library: {mode: {fdr: open_table(f"{outpath}/gsea/{gsea}.{library}.feather")[mode] for fdr in FDRs} for mode in modes} for library in libraries} for gsea in gsea_methods}
+    file_gobp = Path("../data/multi/common_gobp.txt")
+    file_kegg = Path("../data/multi/common_kegg.txt")
+    with open(file_gobp, "rb") as f:
+        common_gobp = pickle.load(f)
+    with open(file_kegg, "rb") as f:
+        common_kegg = pickle.load(f)
+    
+    for N in all_N:
+        print(f"N{N} ", end=" ")
+        outpath_N = f"{outpath}/{outname}_N{N}"   
+        
+        for out in outlier_methods:
+            for dea in DEAs:
+                for gsea in gsea_methods:
+                    if "s2n" in gsea and dea != "edgerqlf": continue
+                    
+                    for library in libraries:
+                        if library == "GO_Biological_Process_2021": len_truth = len(common_gobp)
+                        elif library == "KEGG_2021_Human": len_truth = len(common_kegg)
+                        else: raise Exception(f"Invalid library: {library}")
+                        
+                        for mode in modes:
+                            mode_suffix = "" if mode == "FDR" else "_common"
+             
+                            # Check which results already exist
+                            to_process = FDRs
+                            for fdr in FDRs:
+                                if (not overwrite and 
+                                    (results[N][out][dea][gsea][library]["median_rep"+mode_suffix][fdr] is not None) and 
+                                    (results[N][out][dea][gsea][library]["median_terms"+mode_suffix][fdr] is not None)):
+                                    to_process.remove(fdr)
+
+                            if len(to_process) < 1: continue
+
+                            df_fdr = open_table(f"{outpath_N}/all.{mode}.{gsea}.{library}.{out}.{dea}.{gsea_param_set}.feather")
+
+                            for fdr in to_process:
+                                
+                                truth_df = truth_dict[gsea][library][mode][fdr]
+                                
+                                if mode == "FDR.common" and library=="GO_Biological_Process_2021":
+                                    common = common_gobp
+                                elif mode == "FDR.common" and library == "KEGG_2021_Human":
+                                    common = common_kegg
+                                elif mode != "FDR.common":
+                                    common = truth_df.index
+                                    
+                                truth_df = truth_df.loc[common]
+                                
+                                # if terms missing in df, append with FDR = 1
+                                if mode == "FDR.common":
+                                    ix=truth_df.index.difference(df_fdr.index)
+                                    if len(ix) > 0:
+                                        df_fdr = pd.concat([df_fdr,pd.DataFrame(np.ones(shape=(len(ix),len(df_fdr.columns))), index=ix, columns=df_fdr.columns)])
+                                                                 
+                                df_fdr = df_fdr.loc[common.intersection(df_fdr.index)]
+                                truth_df = truth_df.loc[df_fdr.index]
+                                
+                                boolarr = np.where(df_fdr<fdr, True, False)
+
+                                results[N][out][dea][gsea][library]["median_terms"+mode_suffix][fdr] = np.median(np.sum(boolarr,axis=0))
+                                results[N][out][dea][gsea][library]["median_rep"+mode_suffix][fdr] = np.median(get_replicability_numba(boolarr))
+                                    
+                                truth = (truth_df < fdr).values
+                                
+                                # if (results[N][out][dea][gsea][library]["median_rep"+mode_suffix][fdr] == 0):
+                                #     display(truth_df)
+                                #     display(common)
+                                #     display(truth.shape)
+                                #     display(boolarr.shape)
+                                #     display(truth.sum())
+                                #     display(boolarr.sum(axis=1))
+                                #     display(df_fdr)
+                                #     print(N,dea,gsea,out,library,mode,fdr)
+                                #     assert 0
+                                    
+                                try:
+                                    mcc, prec, rec = get_array_metrics_numba(truth, boolarr)
+                                except ValueError:
+                                    display(truth.shape)
+                                    display(boolarr.shape)
+                                    display(truth_df)
+                                    print(mode,library,gsea)
+                                    assert 0
+                                results[N][out][dea][gsea][library]["median_mcc"+mode_suffix][fdr] = np.nanmedian(mcc)
+                                results[N][out][dea][gsea][library]["median_prec"+mode_suffix][fdr] = np.nanmedian(prec)
+                                results[N][out][dea][gsea][library]["median_rec"+mode_suffix][fdr] = np.nanmedian(rec)
+    return results
+
+def get_n_gsea_truth(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, FDRs, gsea_param_set, overwrite=False) -> dict:
+    """
+    
+    """
+    modes = ["FDR", "FDR.common"]
+    truth_dict = {gsea: {library: {mode: {fdr: open_table(f"{outpath}/gsea/{gsea}.{library}.feather")[mode] for fdr in FDRs} for mode in modes} for library in libraries} for gsea in gsea_methods}
+    file_gobp = Path("../data/multi/common_gobp.txt")
+    file_kegg = Path("../data/multi/common_kegg.txt")
+    with open(file_gobp, "rb") as f:
+        common_gobp = pickle.load(f)
+    with open(file_kegg, "rb") as f:
+        common_kegg = pickle.load(f)
+    
+    outpath_N = f"{outpath}/{outname}_N15"   
+
+    for out in outlier_methods:
+        for dea in DEAs:
+            for gsea in gsea_methods:
+                if "s2n" in gsea and dea != "edgerqlf": continue
+
+                for library in libraries:
+                    if library == "GO_Biological_Process_2021": len_truth = len(common_gobp)
+                    elif library == "KEGG_2021_Human": len_truth = len(common_kegg)
+                    else: raise Exception(f"Invalid library: {library}")
+
+                    for mode in modes:
+                        mode_suffix = "" if mode == "FDR" else "_common"
+
+                        df_fdr = open_table(f"{outpath_N}/all.{mode}.{gsea}.{library}.{out}.{dea}.{gsea_param_set}.feather")
+
+                        for fdr in FDRs:
+
+                            truth_df = truth_dict[gsea][library][mode][fdr]
+
+                            if mode == "FDR.common" and library=="GO_Biological_Process_2021":
+                                common = common_gobp
+                            elif mode == "FDR.common" and library == "KEGG_2021_Human":
+                                common = common_kegg
+                            elif mode != "FDR.common":
+                                common = truth_df.index
+
+                            truth_df = truth_df.loc[common]
+
+                            # if terms missing in df, append with FDR = 1
+                            if mode == "FDR.common":
+                                ix=truth_df.index.difference(df_fdr.index)
+                                if len(ix) > 0:
+                                    df_fdr = pd.concat([df_fdr,pd.DataFrame(np.ones(shape=(len(ix),len(df_fdr.columns))), index=ix, columns=df_fdr.columns)])
+
+                            df_fdr = df_fdr.loc[common.intersection(df_fdr.index)]
+                            truth_df = truth_df.loc[df_fdr.index]
+                            truth = (truth_df < fdr).values
+
+                            results[out][dea][gsea][library]["truth"+mode_suffix][fdr] = np.sum(truth)
+
+    return results

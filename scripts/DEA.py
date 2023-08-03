@@ -88,7 +88,7 @@ def normalize_counts(df):
     ro.r['source'](str(wd)) # Loading the R script
     
     df_r = df if isinstance(df, ro.vectors.DataFrame) else pd_to_R(df) # Converting to R dataframe
-    DESeq2 = ro.globalenv['deseq2']
+    DESeq2 = ro.globalenv['run_deseq2']
     sizefactors = DESeq2(df_r, outfile="", design="paired", overwrite=True, 
                          print_summary=False, cols_to_keep="", size_factors_only=True)
     return df/list(sizefactors)

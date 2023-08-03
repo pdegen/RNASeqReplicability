@@ -148,7 +148,7 @@ run_deseq2 <- function(x, outfile, design="paired", overwrite=FALSE, print_summa
     save_table(res, outfile) 
 }
 
-jackknife_paired <- function(x, outname, path, overwrite=FALSE, include_full=TRUE, DEA="edgeR", skip_cols="skip_none", ...) {
+jackknife_paired <- function(x, outname, path, overwrite=FALSE, include_full=TRUE, DEA="edgerqlf", skip_cols="skip_none", ...) {
 # run jackknife on paired-design experiment data
 
     if (!overwrite) {
@@ -178,10 +178,10 @@ jackknife_paired <- function(x, outname, path, overwrite=FALSE, include_full=TRU
         xx <- x[-ind]
 
         # Do DE analysis
-        if (DEA == "edgeR") {
-            edgeR_QLF(xx, tableFile, design="paired", overwrite=overwrite, ...) 
+        if (DEA == "edgerqlf") {
+            run_edgeR(xx, tableFile, design="paired", overwrite=overwrite, ...) 
         } else if (DEA == "DESeq2") {
-            deseq2(xx, tableFile, design="paired", overwrite=overwrite, ...)
+            run_deseq2(xx, tableFile, design="paired", overwrite=overwrite, ...)
         }
         else {stop(paste(dea,"not implemented"))}
         
@@ -191,11 +191,11 @@ jackknife_paired <- function(x, outname, path, overwrite=FALSE, include_full=TRU
     if (include_full) {
         tableFile = paste(path,"/",outname,"_0_table.csv",sep="")
         if (overwrite || !file.exists(tableFile)) {
-            if (DEA == "edgeR") {
-                edgeR_QLF(x, tableFile, design="paired", overwrite=overwrite, cols_to_keep=c("logFC","logCPM","FDR")) 
+            if (DEA == "edgerqlf") {
+                run_edgeR(x, tableFile, design="paired", overwrite=overwrite, cols_to_keep=c("logFC","logCPM","FDR")) 
             }
             else if (DEA == "DESeq2") {
-                deseq2(x, tableFile, design="paired", overwrite=overwrite, cols_to_keep=c("logFC","logCPM","FDR"))
+                run_deseq2(x, tableFile, design="paired", overwrite=overwrite, cols_to_keep=c("logFC","logCPM","FDR"))
             }
         }
     }

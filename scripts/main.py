@@ -54,7 +54,7 @@ def main(config, DEA_method, outlier_method, param_set):
 
     #### Find the outliers and remove from cohort
 
-    if DEA_method == "edger" or outlier_method == "none":
+    if DEA_method == "edgerqlf" or outlier_method == "none":
         outliers = get_outlier_patients(df_sub, outlier_method, outname, outpath, **outlier_kwargs)
     else:
         outlier_kwargs["param_set"] = param_set
