@@ -994,12 +994,14 @@ def process_gsea_results(results, outpath, outname, all_N, DEAs, outlier_methods
 
 def get_n_gsea_truth(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, FDRs, gsea_param_set, overwrite=False) -> dict:
     """
-    
     """
     modes = ["FDR", "FDR.common"]
     truth_dict = {gsea: {library: {mode: {fdr: open_table(f"{outpath}/gsea/{gsea}.{library}.feather")[mode] for fdr in FDRs} for mode in modes} for library in libraries} for gsea in gsea_methods}
+    
+    # Common term pool shared between different methods (GSEApy, clusterORA)
     file_gobp = Path("../data/multi/common_gobp.txt")
     file_kegg = Path("../data/multi/common_kegg.txt")
+    
     with open(file_gobp, "rb") as f:
         common_gobp = pickle.load(f)
     with open(file_kegg, "rb") as f:
