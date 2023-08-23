@@ -69,9 +69,18 @@ run_edgeR <- function(x, outfile, design, overwrite=FALSE, filter_expr=FALSE, to
         patient <- factor(c(seq(N),seq(N)))
         condition <- factor(c(rep("N",N),rep("T",N))) # normal vs tumor (control vs treatment)
         design <- model.matrix(~patient+condition)
+    } else if (design=="unpaired") {
+        if (ncol(x)%%2 != 0) {stop("Design matrix must have even number of columns")}
+        N <- ncol(x)/2
+        condition <- factor(c(rep("N",N),rep("T",N))) # normal vs tumor (control vs treatment)
+        design <- model.matrix(~condition)
+    } else if (design=="GSE91061") {
+        condition <- factor(c(rep("Pre",51),rep("On",58))) # normal vs tumor (control vs treatment)
+        design <- model.matrix(~condition)
     }
 
     y <- DGEList(counts=x)
+
     rownames(design) <- colnames(y)
 
     if (filter_expr) {
