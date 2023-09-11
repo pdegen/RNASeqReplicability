@@ -1,0 +1,9 @@
+,Data,Out,DEA,Enrichment,Library,FDR,truth,truth_common
+0,LIHC,None,edgerqlf,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,,
+1,LIHC,None,edgerqlf,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,,
+2,LIHC,None,edgerqlf,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,,
+3,LIHC,None,edgerqlf,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,,
+4,LIHC,None,edgerqlf,gseapy,GO_Biological_Process_2021,0.05,,
+5,LIHC,None,edgerqlf,gseapy,KEGG_2021_Human,0.05,,
+6,LIHC,None,edgerqlf,gseapy_s2n,GO_Biological_Process_2021,0.05,,
+7,LIHC,None,edgerqlf,gseapy_s2n,KEGG_2021_Human,0.05,,
