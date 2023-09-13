@@ -64,7 +64,7 @@ def add_metadata_to_multiindex(df, df_meta):
     df_meta : pd.DataFrame, metadata with k rows, n columns
     """
 
-    if np.all(df.columns != df_meta.columns):
+    if np.any(df.columns != df_meta.columns):
         raise Exception("df and df_meta must have matching columns")
 
     if "Sample" in df_meta.index:
