@@ -1,9 +1,211 @@
 ,Data,Out,DEA,Enrichment,Library,FDR,truth,truth_common
-0,LIHC,None,edgerqlf,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,,
-1,LIHC,None,edgerqlf,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,,
-2,LIHC,None,edgerqlf,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,,
-3,LIHC,None,edgerqlf,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,,
-4,LIHC,None,edgerqlf,gseapy,GO_Biological_Process_2021,0.05,,
-5,LIHC,None,edgerqlf,gseapy,KEGG_2021_Human,0.05,,
-6,LIHC,None,edgerqlf,gseapy_s2n,GO_Biological_Process_2021,0.05,,
-7,LIHC,None,edgerqlf,gseapy_s2n,KEGG_2021_Human,0.05,,
+0,BRCA,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1438,789
+1,BRCA,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,69,43
+2,BRCA,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1165,542
+3,BRCA,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,33,36
+4,BRCA,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,1094,529
+5,BRCA,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,33,43
+6,BRCA,None,DESeq2,gseapy,GO_Biological_Process_2021,0.05,396,269
+7,BRCA,None,DESeq2,gseapy,KEGG_2021_Human,0.05,72,63
+8,BRCA,None,DESeq2,gseapy_s2n,GO_Biological_Process_2021,0.05,550,325
+9,BRCA,None,DESeq2,gseapy_s2n,KEGG_2021_Human,0.05,70,55
+10,BRCA,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1438,789
+11,BRCA,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,69,43
+12,BRCA,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1165,542
+13,BRCA,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,33,36
+14,BRCA,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,1094,529
+15,BRCA,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,33,43
+16,BRCA,None,edgeR QLF,gseapy,GO_Biological_Process_2021,0.05,396,269
+17,BRCA,None,edgeR QLF,gseapy,KEGG_2021_Human,0.05,72,63
+18,BRCA,None,edgeR QLF,gseapy_s2n,GO_Biological_Process_2021,0.05,550,325
+19,BRCA,None,edgeR QLF,gseapy_s2n,KEGG_2021_Human,0.05,70,55
+20,BRCA,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1438,789
+21,BRCA,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,69,43
+22,BRCA,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1165,542
+23,BRCA,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,33,36
+24,BRCA,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,1094,529
+25,BRCA,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,33,43
+26,BRCA,None,edgeR LRT,gseapy,GO_Biological_Process_2021,0.05,396,269
+27,BRCA,None,edgeR LRT,gseapy,KEGG_2021_Human,0.05,72,63
+28,BRCA,None,edgeR LRT,gseapy_s2n,GO_Biological_Process_2021,0.05,550,325
+29,BRCA,None,edgeR LRT,gseapy_s2n,KEGG_2021_Human,0.05,70,55
+30,COAD,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1534,787
+31,COAD,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,0,34
+32,COAD,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1276,579
+33,COAD,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,0,34
+34,COAD,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,678,355
+35,COAD,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,23,16
+36,COAD,None,DESeq2,gseapy,GO_Biological_Process_2021,0.05,241,155
+37,COAD,None,DESeq2,gseapy,KEGG_2021_Human,0.05,76,46
+38,COAD,None,DESeq2,gseapy_s2n,GO_Biological_Process_2021,0.05,516,289
+39,COAD,None,DESeq2,gseapy_s2n,KEGG_2021_Human,0.05,156,108
+40,COAD,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1534,787
+41,COAD,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,0,34
+42,COAD,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1276,579
+43,COAD,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,0,34
+44,COAD,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,678,355
+45,COAD,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,23,16
+46,COAD,None,edgeR QLF,gseapy,GO_Biological_Process_2021,0.05,241,155
+47,COAD,None,edgeR QLF,gseapy,KEGG_2021_Human,0.05,76,46
+48,COAD,None,edgeR QLF,gseapy_s2n,GO_Biological_Process_2021,0.05,516,289
+49,COAD,None,edgeR QLF,gseapy_s2n,KEGG_2021_Human,0.05,156,108
+50,COAD,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1534,787
+51,COAD,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,0,34
+52,COAD,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1276,579
+53,COAD,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,0,34
+54,COAD,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,678,355
+55,COAD,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,23,16
+56,COAD,None,edgeR LRT,gseapy,GO_Biological_Process_2021,0.05,241,155
+57,COAD,None,edgeR LRT,gseapy,KEGG_2021_Human,0.05,76,46
+58,COAD,None,edgeR LRT,gseapy_s2n,GO_Biological_Process_2021,0.05,516,289
+59,COAD,None,edgeR LRT,gseapy_s2n,KEGG_2021_Human,0.05,156,108
+60,KIRC,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1633,774
+61,KIRC,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,89,60
+62,KIRC,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1555,601
+63,KIRC,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,60,44
+64,KIRC,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,1138,471
+65,KIRC,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,48,34
+66,KIRC,None,DESeq2,gseapy,GO_Biological_Process_2021,0.05,278,189
+67,KIRC,None,DESeq2,gseapy,KEGG_2021_Human,0.05,83,53
+68,KIRC,None,DESeq2,gseapy_s2n,GO_Biological_Process_2021,0.05,465,274
+69,KIRC,None,DESeq2,gseapy_s2n,KEGG_2021_Human,0.05,119,70
+70,KIRC,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1633,774
+71,KIRC,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,89,60
+72,KIRC,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1555,601
+73,KIRC,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,60,44
+74,KIRC,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,1138,471
+75,KIRC,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,48,34
+76,KIRC,None,edgeR QLF,gseapy,GO_Biological_Process_2021,0.05,278,189
+77,KIRC,None,edgeR QLF,gseapy,KEGG_2021_Human,0.05,83,53
+78,KIRC,None,edgeR QLF,gseapy_s2n,GO_Biological_Process_2021,0.05,465,274
+79,KIRC,None,edgeR QLF,gseapy_s2n,KEGG_2021_Human,0.05,119,70
+80,KIRC,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1633,774
+81,KIRC,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,89,60
+82,KIRC,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1555,601
+83,KIRC,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,60,44
+84,KIRC,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,1138,471
+85,KIRC,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,48,34
+86,KIRC,None,edgeR LRT,gseapy,GO_Biological_Process_2021,0.05,278,189
+87,KIRC,None,edgeR LRT,gseapy,KEGG_2021_Human,0.05,83,53
+88,KIRC,None,edgeR LRT,gseapy_s2n,GO_Biological_Process_2021,0.05,465,274
+89,KIRC,None,edgeR LRT,gseapy_s2n,KEGG_2021_Human,0.05,119,70
+90,LIHC,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1375,724
+91,LIHC,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,0,58
+92,LIHC,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1243,531
+93,LIHC,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,0,40
+94,LIHC,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,786,365
+95,LIHC,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,30,22
+96,LIHC,None,DESeq2,gseapy,GO_Biological_Process_2021,0.05,309,259
+97,LIHC,None,DESeq2,gseapy,KEGG_2021_Human,0.05,79,44
+98,LIHC,None,DESeq2,gseapy_s2n,GO_Biological_Process_2021,0.05,372,266
+99,LIHC,None,DESeq2,gseapy_s2n,KEGG_2021_Human,0.05,90,46
+100,LIHC,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1375,724
+101,LIHC,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,0,58
+102,LIHC,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1243,531
+103,LIHC,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,0,40
+104,LIHC,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,786,365
+105,LIHC,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,30,22
+106,LIHC,None,edgeR QLF,gseapy,GO_Biological_Process_2021,0.05,309,259
+107,LIHC,None,edgeR QLF,gseapy,KEGG_2021_Human,0.05,79,44
+108,LIHC,None,edgeR QLF,gseapy_s2n,GO_Biological_Process_2021,0.05,372,266
+109,LIHC,None,edgeR QLF,gseapy_s2n,KEGG_2021_Human,0.05,90,46
+110,LIHC,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1375,724
+111,LIHC,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,0,58
+112,LIHC,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1243,531
+113,LIHC,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,0,40
+114,LIHC,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,786,365
+115,LIHC,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,30,22
+116,LIHC,None,edgeR LRT,gseapy,GO_Biological_Process_2021,0.05,309,259
+117,LIHC,None,edgeR LRT,gseapy,KEGG_2021_Human,0.05,79,44
+118,LIHC,None,edgeR LRT,gseapy_s2n,GO_Biological_Process_2021,0.05,372,266
+119,LIHC,None,edgeR LRT,gseapy_s2n,KEGG_2021_Human,0.05,90,46
+120,LUAD,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1351,757
+121,LUAD,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,0,30
+122,LUAD,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1390,595
+123,LUAD,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,0,29
+124,LUAD,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,823,415
+125,LUAD,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,15,14
+126,LUAD,None,DESeq2,gseapy,GO_Biological_Process_2021,0.05,473,344
+127,LUAD,None,DESeq2,gseapy,KEGG_2021_Human,0.05,109,76
+128,LUAD,None,DESeq2,gseapy_s2n,GO_Biological_Process_2021,0.05,793,494
+129,LUAD,None,DESeq2,gseapy_s2n,KEGG_2021_Human,0.05,136,99
+130,LUAD,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1351,757
+131,LUAD,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,0,30
+132,LUAD,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1390,595
+133,LUAD,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,0,29
+134,LUAD,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,823,415
+135,LUAD,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,15,14
+136,LUAD,None,edgeR QLF,gseapy,GO_Biological_Process_2021,0.05,473,344
+137,LUAD,None,edgeR QLF,gseapy,KEGG_2021_Human,0.05,109,76
+138,LUAD,None,edgeR QLF,gseapy_s2n,GO_Biological_Process_2021,0.05,793,494
+139,LUAD,None,edgeR QLF,gseapy_s2n,KEGG_2021_Human,0.05,136,99
+140,LUAD,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1351,757
+141,LUAD,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,0,30
+142,LUAD,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,1390,595
+143,LUAD,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,0,29
+144,LUAD,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,823,415
+145,LUAD,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,15,14
+146,LUAD,None,edgeR LRT,gseapy,GO_Biological_Process_2021,0.05,473,344
+147,LUAD,None,edgeR LRT,gseapy,KEGG_2021_Human,0.05,109,76
+148,LUAD,None,edgeR LRT,gseapy_s2n,GO_Biological_Process_2021,0.05,793,494
+149,LUAD,None,edgeR LRT,gseapy_s2n,KEGG_2021_Human,0.05,136,99
+150,PRAD,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,753,503
+151,PRAD,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,36,38
+152,PRAD,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,420,191
+153,PRAD,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,23,21
+154,PRAD,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,12,2
+155,PRAD,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,2,0
+156,PRAD,None,DESeq2,gseapy,GO_Biological_Process_2021,0.05,103,99
+157,PRAD,None,DESeq2,gseapy,KEGG_2021_Human,0.05,24,43
+158,PRAD,None,DESeq2,gseapy_s2n,GO_Biological_Process_2021,0.05,198,131
+159,PRAD,None,DESeq2,gseapy_s2n,KEGG_2021_Human,0.05,63,59
+160,PRAD,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,753,503
+161,PRAD,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,36,38
+162,PRAD,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,420,191
+163,PRAD,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,23,21
+164,PRAD,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,12,2
+165,PRAD,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,2,0
+166,PRAD,None,edgeR QLF,gseapy,GO_Biological_Process_2021,0.05,103,99
+167,PRAD,None,edgeR QLF,gseapy,KEGG_2021_Human,0.05,24,43
+168,PRAD,None,edgeR QLF,gseapy_s2n,GO_Biological_Process_2021,0.05,198,131
+169,PRAD,None,edgeR QLF,gseapy_s2n,KEGG_2021_Human,0.05,63,59
+170,PRAD,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,753,503
+171,PRAD,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,36,38
+172,PRAD,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,420,191
+173,PRAD,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,23,21
+174,PRAD,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,12,2
+175,PRAD,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,2,0
+176,PRAD,None,edgeR LRT,gseapy,GO_Biological_Process_2021,0.05,103,99
+177,PRAD,None,edgeR LRT,gseapy,KEGG_2021_Human,0.05,24,43
+178,PRAD,None,edgeR LRT,gseapy_s2n,GO_Biological_Process_2021,0.05,198,131
+179,PRAD,None,edgeR LRT,gseapy_s2n,KEGG_2021_Human,0.05,63,59
+180,THCA,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1152,691
+181,THCA,None,DESeq2,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,0,33
+182,THCA,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,907,484
+183,THCA,None,DESeq2,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,0,20
+184,THCA,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,513,272
+185,THCA,None,DESeq2,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,3,3
+186,THCA,None,DESeq2,gseapy,GO_Biological_Process_2021,0.05,28,41
+187,THCA,None,DESeq2,gseapy,KEGG_2021_Human,0.05,35,26
+188,THCA,None,DESeq2,gseapy_s2n,GO_Biological_Process_2021,0.05,53,77
+189,THCA,None,DESeq2,gseapy_s2n,KEGG_2021_Human,0.05,41,35
+190,THCA,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1152,691
+191,THCA,None,edgeR QLF,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,0,33
+192,THCA,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,907,484
+193,THCA,None,edgeR QLF,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,0,20
+194,THCA,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,513,272
+195,THCA,None,edgeR QLF,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,3,3
+196,THCA,None,edgeR QLF,gseapy,GO_Biological_Process_2021,0.05,28,41
+197,THCA,None,edgeR QLF,gseapy,KEGG_2021_Human,0.05,35,26
+198,THCA,None,edgeR QLF,gseapy_s2n,GO_Biological_Process_2021,0.05,53,77
+199,THCA,None,edgeR QLF,gseapy_s2n,KEGG_2021_Human,0.05,41,35
+200,THCA,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,GO_Biological_Process_2021,0.05,1152,691
+201,THCA,None,edgeR LRT,clusterORA.fdr0.05.post_lfc0.lfc0,KEGG_2021_Human,0.05,0,33
+202,THCA,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,GO_Biological_Process_2021,0.05,907,484
+203,THCA,None,edgeR LRT,clusterORA.fdr0.05.post_lfc1.lfc0,KEGG_2021_Human,0.05,0,20
+204,THCA,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,GO_Biological_Process_2021,0.05,513,272
+205,THCA,None,edgeR LRT,clusterORA_lfc.fdr0.05.post_lfc1.lfc1,KEGG_2021_Human,0.05,3,3
+206,THCA,None,edgeR LRT,gseapy,GO_Biological_Process_2021,0.05,28,41
+207,THCA,None,edgeR LRT,gseapy,KEGG_2021_Human,0.05,35,26
+208,THCA,None,edgeR LRT,gseapy_s2n,GO_Biological_Process_2021,0.05,53,77
+209,THCA,None,edgeR LRT,gseapy_s2n,KEGG_2021_Human,0.05,41,35
