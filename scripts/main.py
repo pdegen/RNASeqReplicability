@@ -72,9 +72,9 @@ def main(config, DEA_method, outlier_method, param_set):
     df_sub = df_sub.drop(outliers, axis=1)
 
     #### Run DEA on post-outlier removed cohort
-
+    
     outfile = f"{outpath}/tab.{outlier_method}.{DEA_method}.{param_set}.feather"
-    run_dea(df_sub, outfile, method=DEA_method, overwrite=config_params["overwrite"], design="paired", **DEA_kwargs)
+    run_dea(df_sub, outfile, method=DEA_method, overwrite=config_params["overwrite"], **DEA_kwargs)
 
 
 if __name__ == "__main__":

@@ -78,7 +78,7 @@ run_edgeR <- function(x, outfile, design, overwrite=FALSE, filter_expr=FALSE, to
         condition <- factor(c(rep("Pre",51),rep("On",58))) # normal vs tumor (control vs treatment)
         design <- model.matrix(~condition)
     }
-
+    
     y <- DGEList(counts=x)
 
     rownames(design) <- colnames(y)
