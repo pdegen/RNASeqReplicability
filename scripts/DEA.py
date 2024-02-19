@@ -34,8 +34,8 @@ def run_dea(df, outfile, method, overwrite, design="paired", lfc=0, **kwargs):
 
     elif method == "deseq2":
         logging.info(f"\nCalling DESeq2 in R with kwargs:\n{kwargs}\n")
-        if isinstance(df, ro.vectors.DataFrame) or design != "paired":
-            raise Exception("Not yet implemented for DESeq2: general design matrix or calling directly with df_r")
+        if isinstance(df, ro.vectors.DataFrame):
+            raise Exception("Not yet implemented for DESeq2: calling directly with df_r")
         DESeq2 = ro.globalenv['run_deseq2']
         DESeq2(df_r, str(outfile), design, overwrite=overwrite, lfc=lfc, **kwargs)
 
@@ -43,7 +43,7 @@ def run_dea(df, outfile, method, overwrite, design="paired", lfc=0, **kwargs):
         raise Exception(f"Method {method} not implemented")
 
 
-def run_dea_on_full_data(datasets, DEAs, lfcs, overwrite=False, truncate_cohorts=0):
+def run_dea_on_full_data(datasets, DEAs, lfcs, design, overwrite=False, truncate_cohorts=0):
     """Run differential expression analysis on parent data with all cohorts f
         
     Parameters
@@ -72,13 +72,13 @@ def run_dea_on_full_data(datasets, DEAs, lfcs, overwrite=False, truncate_cohorts
 
                     with Timer(name="context manager"):
                         if dea == "deseq2":
-                            run_dea(df_full, respath, method=dea, overwrite=overwrite, design="paired",
+                            run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design,
                                     cols_to_keep="all", lfc=lfc)
                         elif dea == "edgerlrt":
-                            run_dea(df_full, respath, method=dea, overwrite=overwrite, design="paired",
+                            run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design,
                                     cols_to_keep="all", test="lrt", lfc=lfc)
                         elif dea == "edgerqlf":
-                            run_dea(df_full, respath, method=dea, overwrite=overwrite, design="paired",
+                            run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design,
                                     cols_to_keep="all", test="qlf", lfc=lfc)
                         else:
                             raise Exception(f"Method {dea} not implemented")

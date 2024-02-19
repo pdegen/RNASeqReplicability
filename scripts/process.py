@@ -552,7 +552,7 @@ def gene_rep(FDR_tab, logFC_tab=[], FDR=0.01, logFC=0, normalize=False):
         return score
 
 
-def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_test):
+def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_tests, overwrite=False):
     """Find ground truth of differentially expressed genes
     
     Creates two truth dataframes:
@@ -561,73 +561,75 @@ def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_test):
     
     Additionally, creates a stats dictionary that stores jaccard, intersection, union, n_deg of the different methods
     
-    lfc_test: the threshold at which differential expression was tested by edegR or deseq2
+    lfc_tests: the thresholds at which differential expression was tested by edegR or deseq2
     logFCs: post hoc lfc thresholds
     """
 
     stats_dict_file = "../data/multi/stats_dict.txt"
     os.system(f"mkdir -p ../data/multi")
 
-    if Path(stats_dict_file).is_file():
+    if Path(stats_dict_file).is_file() and not overwrite:
         with open(stats_dict_file, "rb") as f:
             stats_dict = pickle.load(f)
 
         for data in datasets:
-            if "truth_stats" not in datasets[data]: datasets[data]["truth_stats"] = {}
-            datasets[data]["truth_stats"][lfc_test] = stats_dict[data]
+            for lfc_test in lfc_tests:
+                if "truth_stats" not in datasets[data]: datasets[data]["truth_stats"] = {}
+                datasets[data]["truth_stats"][lfc_test] = stats_dict[data]
         return datasets
 
     stats_dict = {data: {fdr: {logFC: {} for logFC in logFCs} for fdr in FDRs} for data in datasets}
 
     for data in datasets:
+        for lfc_test in lfc_tests:
 
-        dea_dict = {dea: {fdr: {logfc: {"DEGs": None} for logfc in logFCs} for fdr in FDRs} for dea in DEAs}
-        lfcs = []
-        for dea in DEAs:
-            d = datasets[data]["datapath"]
-            p = Path(d.parent, datasets[data]["datapath"].stem + f".{dea}.lfc{lfc_test}.csv")
-            tab = pd.read_csv(p, index_col=0)
-            lfcs.append(tab["logFC"])
+            dea_dict = {dea: {fdr: {logfc: {"DEGs": None} for logfc in logFCs} for fdr in FDRs} for dea in DEAs}
+            lfcs = []
+            for dea in DEAs:
+                d = datasets[data]["datapath"]
+                p = Path(d.parent, datasets[data]["datapath"].stem + f".{dea}.lfc{lfc_test}.csv")
+                tab = pd.read_csv(p, index_col=0)
+                lfcs.append(tab["logFC"])
 
+                for fdr in FDRs:
+                    for logFC in logFCs:
+                        dea_dict[dea][fdr][logFC]["DEGs"] = tab[(tab["FDR"] < fdr) & (tab["logFC"].abs() > logFC)]["logFC"]
+
+            # Store logFC truth df of all genes
+            savepath = Path(datasets[data]["outpath"], "truth_lfc.csv")
+            if overwrite or not Path(savepath).is_file():
+                common = list(set.intersection(*[set(l.index) for l in lfcs]))
+                lfcs = [l.loc[common] for l in lfcs]
+                lfcs_df = pd.DataFrame(np.mean(np.array(lfcs).T, axis=1), index=common, columns=["logFC"])
+                lfcs_df.to_csv(savepath)
+
+            # Store DEG truth for all fdr, lfc cutoffs
             for fdr in FDRs:
                 for logFC in logFCs:
-                    dea_dict[dea][fdr][logFC]["DEGs"] = tab[(tab["FDR"] < fdr) & (tab["logFC"].abs() > logFC)]["logFC"]
 
-        # Store logFC truth df of all genes
-        savepath = Path(datasets[data]["outpath"], "truth_lfc.csv")
-        if overwrite or not Path(savepath).is_file():
-            common = set.intersection(*[set(l.index) for l in lfcs])
-            lfcs = [l.loc[common] for l in lfcs]
-            lfcs_df = pd.DataFrame(np.mean(np.array(lfcs).T, axis=1), index=common, columns=["logFC"])
-            lfcs_df.to_csv(savepath)
+                    sets = []
+                    for dea in DEAs:
+                        sets.append(set(dea_dict[dea][fdr][logFC]["DEGs"].index))
+                        stats_dict[data][fdr][logFC][dea] = len(sets[-1])
 
-        # Store DEG truth for all fdr, lfc cutoffs
-        for fdr in FDRs:
-            for logFC in logFCs:
+                    inter, union = list(set.intersection(*sets)), list(set.union(*sets))
 
-                sets = []
-                for dea in DEAs:
-                    sets.append(set(dea_dict[dea][fdr][logFC]["DEGs"].index))
-                    stats_dict[data][fdr][logFC][dea] = len(sets[-1])
+                    stats_dict[data][fdr][logFC]["jaccard"] = len(inter) / len(union)
+                    stats_dict[data][fdr][logFC]["union"] = len(union)
+                    stats_dict[data][fdr][logFC]["inter"] = len(inter)
 
-                inter, union = set.intersection(*sets), set.union(*sets)
+                    savepath = Path(datasets[data]["outpath"], f"truth.fdr{fdr}.post_lfc{logFC}.lfc{lfc_test}.csv")
+                    if not overwrite and Path(savepath).is_file(): continue
 
-                stats_dict[data][fdr][logFC]["jaccard"] = len(inter) / len(union)
-                stats_dict[data][fdr][logFC]["union"] = len(union)
-                stats_dict[data][fdr][logFC]["inter"] = len(inter)
+                    deg_df = pd.DataFrame(index=inter, columns=DEAs)
+                    for dea in DEAs:
+                        lfc = dea_dict[dea][fdr][logFC]["DEGs"]
+                        deg_df[dea] = lfc.loc[lfc.index.intersection(inter)]
+                    # datasets[data]["fulldata"]["combined"][fdr][logFC]["truth"] = logFC_df
+                    deg_df.to_csv(savepath)
 
-                savepath = Path(datasets[data]["outpath"], f"truth.fdr{fdr}.post_lfc{logFC}.lfc{lfc_test}.csv")
-                if not overwrite and Path(savepath).is_file(): continue
-
-                deg_df = pd.DataFrame(index=inter, columns=DEAs)
-                for dea in DEAs:
-                    lfc = dea_dict[dea][fdr][logFC]["DEGs"]
-                    deg_df[dea] = lfc.loc[lfc.index.intersection(inter)]
-                # datasets[data]["fulldata"]["combined"][fdr][logFC]["truth"] = logFC_df
-                deg_df.to_csv(savepath)
-
-        if "truth_stats" not in datasets[data]: datasets[data]["truth_stats"] = {}
-        datasets[data]["truth_stats"][lfc_test] = stats_dict[data]
+            if "truth_stats" not in datasets[data]: datasets[data]["truth_stats"] = {}
+            datasets[data]["truth_stats"][lfc_test] = stats_dict[data]
 
     pickler(stats_dict, stats_dict_file)
     return datasets

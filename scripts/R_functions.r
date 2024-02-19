@@ -43,7 +43,7 @@ edgeR_filterByExpression <- function(inpath, outpath, design) {
     write.csv(y$counts, outpath, row.names = TRUE)
 }
 
-#' Run edgeR (intended with paired sample design matrix)
+#' Run edgeR
 #'
 #' @param x: dataframe of counts
 #' @param design: design matrix, if "paired" constructs design matrix from data assuming x is of the form: k control cols followed by k treatment cols
@@ -75,7 +75,7 @@ run_edgeR <- function(x, outfile, design, overwrite=FALSE, filter_expr=FALSE, to
         condition <- factor(c(rep("N",N),rep("T",N))) # normal vs tumor (control vs treatment)
         design <- model.matrix(~condition)
     } else if (design=="GSE91061") {
-        condition <- factor(c(rep("Pre",51),rep("On",58))) # normal vs tumor (control vs treatment)
+        condition <- factor(c(rep("Pre",51),rep("On",58))) # (control vs treatment)
         design <- model.matrix(~condition)
     }
     
@@ -97,11 +97,11 @@ run_edgeR <- function(x, outfile, design, overwrite=FALSE, filter_expr=FALSE, to
     if (test=="lrt") fit <- glmFit(y,design)
     else fit <- glmQLFit(y,design)
 
-    if (lfc>0) qlf <- glmTreat(fit, lfc=lfc)
-    else if (test=="lrt") qlf <- glmLRT(fit)
-    else qlf <- glmQLFTest(fit) # omit coef (edgeR user's guide p. 39)
+    if (lfc>0) result <- glmTreat(fit, lfc=lfc)
+    else if (test=="lrt") result <- glmLRT(fit)
+    else result <- glmQLFTest(fit) # omit coef (edgeR user's guide p. 39)
 
-    table = topTags(qlf, n = top_tags) #adjust.method="BH"
+    table = topTags(result, n = top_tags) #adjust.method="BH"
     
     if (any(cols_to_keep != "all")) {
         if (typeof(cols_to_keep)=="list") cols_to_keep = unlist(cols_to_keep)
@@ -129,12 +129,25 @@ run_deseq2 <- function(x, outfile, design="paired", overwrite=FALSE, print_summa
         array = array(factor(c(patients,condition)),dim=c(length(patients),2))
         coldata <- data.frame(array, row.names = colnames(x))
         colnames(coldata) <- c("patient","condition")
+        
+        dds <- DESeqDataSetFromMatrix(countData = x,
+                                  colData = coldata,
+                                  design = ~ patient + condition)
     }
-    else {stop("Only paired-design implemented for DESeq2 atm")}
+    else if (design == "unpaired") {
+        if (ncol(x)%%2 != 0) {stop("Design matrix must have even number of columns")}
+        N <- ncol(x)/2
+        condition <- factor(c(rep("N",N),rep("T",N))) # normal vs tumor (control vs treatment)
+        array = array(factor(condition),dim=c(length(condition)))
+        coldata <- data.frame(array, row.names = colnames(x))
+        colnames(coldata) <- c("condition")
+        dds <- DESeqDataSetFromMatrix(countData = x,
+                                  colData = coldata,
+                                  design = ~ condition)
+    }
+    else {stop("Test not implemented")}
     
-    dds <- DESeqDataSetFromMatrix(countData = x,
-                              colData = coldata,
-                              design = ~ patient + condition)
+
     
     if (size_factors_only)
         return(sizeFactors(estimateSizeFactors(dds)))
