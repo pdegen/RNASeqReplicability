@@ -378,8 +378,17 @@ def process_results(results, outpath, outname, all_N, DEAs, outlier_methods, FDR
 
                 if len(to_process) < 1: continue
 
-                df_lfc = open_table(f"{outpath_N}/all.logFC.{out}.{dea}.{param_set}.feather")
-                df_fdr = open_table(f"{outpath_N}/all.FDR.{out}.{dea}.{param_set}.feather")
+                if dea == "wilcox":
+                    # Since we Wilcox doesn't estimate lfc but we use DESeq2 to normalize counts, simply use DESeq2 for lfc estimates
+                    df_lfc = open_table(f"{outpath_N}/all.logFC.{out}.deseq2.{param_set}.feather")
+                else:
+                    df_lfc = open_table(f"{outpath_N}/all.logFC.{out}.{dea}.{param_set}.feather")                    
+                    
+                try:
+                    df_fdr = open_table(f"{outpath_N}/all.FDR.{out}.{dea}.{param_set}.feather")
+                except FileNotFoundError:
+                    print("File not found:", f"{outpath_N}/all.FDR.{out}.{dea}.{param_set}.feather")
+                    continue
 
                 for fdr, logFC in to_process:
                     boolarr_deg = np.where((df_lfc.abs() > logFC) & (df_fdr < fdr), True, False)
@@ -409,13 +418,19 @@ def calc_rep_same_cohort_size(results, outpath, outname, all_N, DEAs, outlier_me
             df_dict = {N: {} for N in all_N}
             for N in all_N:
                 outpath_N = f"{outpath}/{outname}_N{N}"
-                df_fdr = open_table(f"{outpath_N}/all.FDR.{out}.{dea}.{param_set}")
-                df_logfc = open_table(f"{outpath_N}/all.logFC.{out}.{dea}.{param_set}")
+                try:
+                    df_fdr = open_table(f"{outpath_N}/all.FDR.{out}.{dea}.{param_set}")
+                    df_logfc = open_table(f"{outpath_N}/all.logFC.{out}.{dea}.{param_set}")
+                except FileNotFoundError:
+                    print("File not found in calc_rep_same_cohort_size:", f"{outpath_N}/all.FDR.{out}.{dea}.{param_set}")
+                    continue
                 df_fdr.columns = df_fdr.columns.astype(str)
                 df_logfc.columns = df_logfc.columns.astype(str)
                 df_dict[N]["FDR"] = df_fdr  # .sort_index()
                 df_dict[N]["logFC"] = df_logfc  # .sort_index()
 
+            if "FDR" not in df_dict[N] or "logFC" not in df_dict[N]: continue
+            
             c = results["n_patients_df"][out]
 
             for Nf in all_N:
@@ -451,7 +466,7 @@ def calc_rep_same_cohort_size(results, outpath, outname, all_N, DEAs, outlier_me
     return results
 
 
-def merge_tables(outpath, outname, all_N, DEAs, outlier_methods, param_set, n_cohorts) -> None:
+def merge_tables(outpath, outname, all_N, DEAs, outlier_methods, param_set, n_cohorts, overwrite=False) -> None:
     """
     Merge tables from different cohorts
     """
@@ -464,18 +479,39 @@ def merge_tables(outpath, outname, all_N, DEAs, outlier_methods, param_set, n_co
 
             for dea in DEAs:
                 list_FDRs, list_logFCs, cohort_ids, tabs = [], [], [], []
+                
+                if not overwrite and Path(f"{outpath_N}/all.FDR.{out}.{dea}.{param_set}.feather").is_file() and Path(f"{outpath_N}/all.logFC.{out}.{dea}.{param_set}.feather").is_file():
+                    print(f"Existing merged tables not overwritten: {outpath_N} {out} {dea} {param_set}")
+                    continue
+                
 
                 for cohort in cohorts:
                     cohort_id = str(int(cohort.split("_")[-1]))
-                    cohort_ids.append(cohort_id)
                     outpath_c = f"{outpath_N}/{cohort}"
-                    tab = open_table(f"{outpath_c}/tab.{out}.{dea}.{param_set}")
-                    list_FDRs.append(tab["FDR"]), list_logFCs.append(tab["logFC"])
+                    try:
+                        f = f"{outpath_c}/tab.{out}.{dea}.{param_set}"
+                        tab = open_table(f)
+                    except FileNotFoundError:
+                        continue
+                    except:
+                        print("Arrownvalid:",f)
+                        continue
+                    cohort_ids.append(cohort_id)
+                    list_FDRs.append(tab["FDR"])
+                    
+                    if dea != "wilcox":
+                        list_logFCs.append(tab["logFC"])
 
+                print(f"{len(cohort_ids)}/{len(cohorts)} cohorts found for merging with {N} {out} {dea} {param_set}")
+                if len(cohort_ids) < 1:
+                    continue
+                
                 FDR_concat = pd.concat(list_FDRs, axis=1, keys=cohort_ids).reset_index(drop=False)
                 FDR_concat.to_feather(f"{outpath_N}/all.FDR.{out}.{dea}.{param_set}.feather")
-                logFC_concat = pd.concat(list_logFCs, axis=1, keys=cohort_ids).reset_index(drop=False)
-                logFC_concat.to_feather(f"{outpath_N}/all.logFC.{out}.{dea}.{param_set}.feather")
+                
+                if dea != "wilcox":
+                    logFC_concat = pd.concat(list_logFCs, axis=1, keys=cohort_ids).reset_index(drop=False)
+                    logFC_concat.to_feather(f"{outpath_N}/all.logFC.{out}.{dea}.{param_set}.feather")
 
 
 @Timer(name="decorator")
@@ -509,9 +545,8 @@ def process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFC
         results["n_patients_df"][out] = get_n_patients_df(results, all_N, outpath, out)
 
     # Merge tables from different cohorts
-    if overwrite_merged:
-        logging.info("Merging tables...")
-        merge_tables(outpath, outname, all_N, DEAs, outlier_methods, param_set, n_cohorts)
+    logging.info("Merging tables...")
+    merge_tables(outpath, outname, all_N, DEAs, outlier_methods, param_set, n_cohorts, overwrite_merged)
 
     # Calculate median replicability, median #DEG, etc.
     logging.info("Processing results...")
@@ -552,11 +587,11 @@ def gene_rep(FDR_tab, logFC_tab=[], FDR=0.01, logFC=0, normalize=False):
         return score
 
 
-def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_tests, overwrite=False):
+def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_tests, overwrite=False, save=True):
     """Find ground truth of differentially expressed genes
     
     Creates two truth dataframes:
-    lfcs_df: mean logFC estimate of all DEA methods for all genes; shape = n_genes x 1
+    lfcs_df: mean logFC estimate of all DEA  methods for all genes; shape = n_genes x 1
     deg_df: for a given fdr, lfc cutoff, store lfcs estimates of all DEA methods for intersection of passing genes; shape = n_deg x n_methods
     
     Additionally, creates a stats dictionary that stores jaccard, intersection, union, n_deg of the different methods
@@ -587,21 +622,33 @@ def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_tests, overwrite=False):
             lfcs = []
             for dea in DEAs:
                 d = datasets[data]["datapath"]
-                p = Path(d.parent, datasets[data]["datapath"].stem + f".{dea}.lfc{lfc_test}.csv")
-                tab = pd.read_csv(p, index_col=0)
+                
+                if dea != "wilcox":
+                    p = Path(d.parent, datasets[data]["datapath"].stem + f".{dea}.lfc{lfc_test}.csv")
+                    tab = pd.read_csv(p, index_col=0)
+                elif lfc_test == 0:
+                    p = Path(d.parent, datasets[data]["datapath"].stem + f".deseq2.lfc{lfc_test}.csv")
+                    tabd = pd.read_csv(p, index_col=0)
+                    p = Path(d.parent, datasets[data]["datapath"].stem + f".wilcox.lfc{lfc_test}.csv")
+                    tab = pd.read_csv(p, index_col=0)
+                    tab["logFC"] = tabd["logFC"]
+                else:
+                    raise Exception("only use lfc_test = [0] if Wilcoxon is used")
+                
                 lfcs.append(tab["logFC"])
 
                 for fdr in FDRs:
                     for logFC in logFCs:
                         dea_dict[dea][fdr][logFC]["DEGs"] = tab[(tab["FDR"] < fdr) & (tab["logFC"].abs() > logFC)]["logFC"]
-
+            
             # Store logFC truth df of all genes
             savepath = Path(datasets[data]["outpath"], "truth_lfc.csv")
             if overwrite or not Path(savepath).is_file():
                 common = list(set.intersection(*[set(l.index) for l in lfcs]))
                 lfcs = [l.loc[common] for l in lfcs]
                 lfcs_df = pd.DataFrame(np.mean(np.array(lfcs).T, axis=1), index=common, columns=["logFC"])
-                lfcs_df.to_csv(savepath)
+                if save:
+                    lfcs_df.to_csv(savepath)
 
             # Store DEG truth for all fdr, lfc cutoffs
             for fdr in FDRs:
@@ -609,12 +656,16 @@ def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_tests, overwrite=False):
 
                     sets = []
                     for dea in DEAs:
+                        
+                        if dea == "wilcox" and lfc_test != 0:
+                            continue
+                        
                         sets.append(set(dea_dict[dea][fdr][logFC]["DEGs"].index))
                         stats_dict[data][fdr][logFC][dea] = len(sets[-1])
 
                     inter, union = list(set.intersection(*sets)), list(set.union(*sets))
 
-                    stats_dict[data][fdr][logFC]["jaccard"] = len(inter) / len(union)
+                    stats_dict[data][fdr][logFC]["jaccard"] = len(inter) / len(union) if len(union) else np.nan
                     stats_dict[data][fdr][logFC]["union"] = len(union)
                     stats_dict[data][fdr][logFC]["inter"] = len(inter)
 
@@ -624,14 +675,17 @@ def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_tests, overwrite=False):
                     deg_df = pd.DataFrame(index=inter, columns=DEAs)
                     for dea in DEAs:
                         lfc = dea_dict[dea][fdr][logFC]["DEGs"]
-                        deg_df[dea] = lfc.loc[lfc.index.intersection(inter)]
+                        if lfc is not None:
+                            deg_df[dea] = lfc.loc[lfc.index.intersection(inter)]
                     # datasets[data]["fulldata"]["combined"][fdr][logFC]["truth"] = logFC_df
-                    deg_df.to_csv(savepath)
+                    if save:
+                        deg_df.to_csv(savepath)
 
             if "truth_stats" not in datasets[data]: datasets[data]["truth_stats"] = {}
             datasets[data]["truth_stats"][lfc_test] = stats_dict[data]
 
-    pickler(stats_dict, stats_dict_file)
+    if save:
+        pickler(stats_dict, stats_dict_file)
     return datasets
 
 

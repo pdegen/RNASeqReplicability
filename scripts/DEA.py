@@ -29,8 +29,8 @@ def run_dea(df, outfile, method, overwrite, design="paired", lfc=0, **kwargs):
 
     if method in ["edgerqlf", "edgerlrt"]:
         logging.info(f"\nCalling edgeR in R with kwargs:\n{kwargs}\n")
-        edgeR_QLF = ro.globalenv['run_edgeR']  # Finding the R function in the script
-        edgeR_QLF(df_r, str(outfile), design, overwrite, lfc=lfc, **kwargs)
+        edgeR = ro.globalenv['run_edgeR']  # Finding the R function in the script
+        edgeR(df_r, str(outfile), design, overwrite, lfc=lfc, **kwargs)
 
     elif method == "deseq2":
         logging.info(f"\nCalling DESeq2 in R with kwargs:\n{kwargs}\n")
@@ -38,6 +38,10 @@ def run_dea(df, outfile, method, overwrite, design="paired", lfc=0, **kwargs):
             raise Exception("Not yet implemented for DESeq2: calling directly with df_r")
         DESeq2 = ro.globalenv['run_deseq2']
         DESeq2(df_r, str(outfile), design, overwrite=overwrite, lfc=lfc, **kwargs)
+        
+    elif method == "wilcox":
+        logging.info(f"\nCalling Wilcoxon rank-sum")
+        wilcox_test(df, outfile=str(outfile), design=design, overwrite=overwrite)
 
     else:
         raise Exception(f"Method {method} not implemented")
@@ -61,7 +65,11 @@ def run_dea_on_full_data(datasets, DEAs, lfcs, design, overwrite=False, truncate
             for dea in DEAs:
                 respath = Path(dpath.split("csv")[0] + dea + ".lfc" + str(lfc) + ".csv")
                 if not respath.is_file() or overwrite:
-                    logging.info(f"Running DEA for {d} {dea}")
+                    
+                    if dea == "wilcox" and lfc != 0:
+                        continue
+                    
+                    logging.info(f"Running DEA for {d} {dea} lfc{lfc}")
                     df_full = pd.read_csv(dpath, index_col=0)
 
                     if truncate_cohorts > 0:
@@ -80,6 +88,9 @@ def run_dea_on_full_data(datasets, DEAs, lfcs, design, overwrite=False, truncate
                         elif dea == "edgerqlf":
                             run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design,
                                     cols_to_keep="all", test="qlf", lfc=lfc)
+                        elif dea == "wilcox":
+                            if lfc == 0:
+                                run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design)
                         else:
                             raise Exception(f"Method {dea} not implemented")
 
@@ -96,6 +107,63 @@ def normalize_counts(df):
     sizefactors = DESeq2(df_r, outfile="", design="paired", overwrite=True,
                          print_summary=False, cols_to_keep="", size_factors_only=True)
     return df / list(sizefactors)
+
+
+from scipy.stats import ranksums, wilcoxon
+from statsmodels.stats.multitest import multipletests
+
+def wilcox_test(df_unnormalized, design, outfile="", overwrite=False):
+    """Perform Wilcoxon rank sum test for a count matrix"""
+    
+    if design == "paired":
+        if len(df_unnormalized.columns) % 2 != 0:
+            raise Exception("df must have even number of columns for paired design")
+        print("Paired design")
+        test_func = wilcoxon
+
+    elif design == "unpaired":
+        print("Unpaired design")
+        test_func = ranksums
+    else:
+        raise Exception("General design matrix not supported, must be paired or unpaired")
+        
+    if os.path.isfile(outfile) and not overwrite:
+        logging.info("Existing file not overwritten")
+        return
+    
+    df = normalize_counts(df_unnormalized)
+    
+    wilcoxon_results = {}
+    for i, gene in enumerate(df.index):
+        control_values = df.iloc[i, :len(df.columns)//2]
+        treatment_values = df.iloc[i, len(df.columns)//2:]
+
+        try:
+            statistic, p_value = test_func(control_values, treatment_values)
+        except ValueError: # wilcox can fail for insufficient sample size
+            statistic, p_value = np.nan, np.nan
+        
+        wilcoxon_results[gene] = {'statistic': statistic, 'p_value': p_value}
+
+    wilcoxon_results_df = pd.DataFrame.from_dict(wilcoxon_results, orient='index')
+    p_values = wilcoxon_results_df['p_value']
+    
+    _, corrected_p_values, _, _ = multipletests(p_values.dropna(), method='fdr_bh')
+    wilcoxon_results_df.loc[~wilcoxon_results_df['p_value'].isna(), 'FDR'] = corrected_p_values    
+
+    if outfile != "":
+        save_df(wilcoxon_results_df, outfile)
+    return wilcoxon_results_df
+
+
+def save_df(df, path):
+    file_extension = path.split('.')[-1].lower()
+    if file_extension == 'csv':
+        df.to_csv(path)
+    elif file_extension == 'feather':
+        df.to_feather(path)
+    else:
+        raise ValueError("Unsupported file extension. Supported extensions are: .csv and .feather")
 
 # def get_edgeR_paired_meta(df, overwrite=False, filter_expr=False):
 
