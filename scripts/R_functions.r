@@ -1,5 +1,6 @@
 library(edgeR)
 library(limma)
+library(dplyr)
 
 save_table <- function(table, outfile) {
     suppressPackageStartupMessages(require("feather"))
@@ -32,6 +33,11 @@ edgeR_filterByExpression <- function(inpath, outpath, design) {
         patient <- factor(c(seq(N),seq(N)))
         condition <- factor(c(rep("N",N),rep("T",N))) # normal vs tumor (control vs treatment)
         design <- model.matrix(~patient+condition)
+    } else if (design=="unpaired") {
+        if (ncol(x)%%2 != 0) {stop("Design matrix must have even number of columns")}
+        N <- ncol(x)/2
+        condition <- factor(c(rep("N",N),rep("T",N))) # normal vs tumor (control vs treatment)
+        design <- model.matrix(~condition)
     }
     
     if (design == "none")
@@ -52,7 +58,8 @@ edgeR_filterByExpression <- function(inpath, outpath, design) {
 #' @param top_tags: int or "Inf", store the results of the most significant genes only
 #' @param lfc: float, logFC threshold when testing for DE
 #' @param cols_to_keep: list of output table columns to save
-run_edgeR <- function(x, outfile, design, overwrite=FALSE, filter_expr=FALSE, top_tags = "Inf", lfc=0, cols_to_keep="all", test="qlf", meta_only=FALSE) {
+run_edgeR <- function(x, outfile, design, overwrite=FALSE, filter_expr=FALSE, top_tags = "Inf", verbose=FALSE,
+                      lfc=0, cols_to_keep="all", test="qlf", meta_only=FALSE, check_gof=FALSE, N_control=0, N_treat=0) {
 
     suppressPackageStartupMessages(require("edgeR"))
     suppressPackageStartupMessages(require("limma"))
@@ -72,15 +79,35 @@ run_edgeR <- function(x, outfile, design, overwrite=FALSE, filter_expr=FALSE, to
     } else if (design=="unpaired") {
         if (ncol(x)%%2 != 0) {stop("Design matrix must have even number of columns")}
         N <- ncol(x)/2
-        condition <- factor(c(rep("N",N),rep("T",N))) # normal vs tumor (control vs treatment)
+        condition <- factor(c(rep("N",N),rep("T",N)))
         design <- model.matrix(~condition)
-    } else if (design=="GSE91061") {
-        condition <- factor(c(rep("Pre",51),rep("On",58))) # (control vs treatment)
+    } else if (Design=="unpaired_asymmetric") {
+        if (N_control == 0) {stop("Design matrix has no control columns")}
+        if (N_treat == 0) {stop("Design matrix has no treatment/condition columns")}
+        condition <- factor(c(rep("N",N_control),rep("T",N_treat)))
         design <- model.matrix(~condition)
+    } else if (grepl("\\.csv$", design, ignore.case = TRUE)) {
+        
+        print("Constructing design matrix from df")
+        covariate_df = read.csv(design)
+        if (!("Condition" %in% colnames(covariate_df))) {stop("Error: 'Condition' column not found in dataframe")}
+        
+        covariate_df <- covariate_df %>%
+          mutate_if(is.character, as.factor)
+        
+        other_vars <- setdiff(names(covariate_df), c("Condition", "X", "Sample"))
+        print("Warning: hard-coded col names in design matrix")
+        formula <- as.formula(paste("~", paste(c(other_vars, "Condition"), collapse = " + ")))
+        design <- model.matrix(formula, data = covariate_df)
     }
+    
+    if (verbose)
+        print(design)
     
     y <- DGEList(counts=x)
 
+    print(length(rownames(design)))
+    print(length(colnames(y)))
     rownames(design) <- colnames(y)
 
     if (filter_expr) {
@@ -96,6 +123,16 @@ run_edgeR <- function(x, outfile, design, overwrite=FALSE, filter_expr=FALSE, to
     
     if (test=="lrt") fit <- glmFit(y,design)
     else fit <- glmQLFit(y,design)
+    
+    # Goodness-of-fit
+    if (check_gof) {
+        res.gof <- gof(fit, plot=FALSE)
+        file_name <- basename(outfile)
+        new_file_name <- paste0("gof.", file_name)
+        new_file_path <- file.path(dirname(outfile), new_file_name)
+        save_table(res.gof$gof.pvalues, new_file_path)
+        print(paste("Saved gof in", new_file_path))
+    }
 
     if (lfc>0) result <- glmTreat(fit, lfc=lfc)
     else if (test=="lrt") result <- glmLRT(fit)

@@ -94,7 +94,7 @@ def paired_replicate_sampler(df, n):
     """
     if len(df.columns) % 2 != 0: raise Exception("Input df must have even number of columns (paired-design experiment)")
     patients = len(df.columns) // 2
-    if patients < n: raise Exception("Number of samples must be smaller than total number of replicates!")
+    if patients < n: raise Exception(f"Number of samples must be smaller than total number of replicates! {len(df.columns)//2}")
     ind = np.array(random.sample(range(0, patients), n))
     ind = np.concatenate([ind, ind + patients])
     ind = np.sort(ind)
