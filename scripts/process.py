@@ -36,9 +36,15 @@ def get_array_metrics_numba(truth, boolarr):
     """
     boolarr: boolean np.array of shape (nrow = n_genes, ncols = n_cohorts), true if gene is DEG in cohort
     truth: ground truth boolean array of shape (n_genes, 1)
-    returns lists of mcc, precision, recall values for each cohort
+    returns lists of mcc, precision, recall, mcc0, prec0 values for each cohort
+    mcc is nan if ZeroDivision; mcc0 is 0 if ZeroDivision (same for precision)
     """
     mcc, prec, rec = [], [], []
+    
+    # # define empty list, but instruct that the type is np.float
+    mcc0 = [np.single(x) for x in range(0)]
+    prec0 = [np.single(x) for x in range(0)]
+    
     a = boolarr + 10 * np.expand_dims(truth, -1)
     n = len(truth)
 
@@ -48,11 +54,13 @@ def get_array_metrics_numba(truth, boolarr):
         FP = np.count_nonzero(col == 1)
         TN = n - TP - FN - FP
         prec.append(TP / (TP + FP) if TP + FP else np.nan)
+        prec0.append(TP / (TP + FP) if TP + FP else 0)
         rec.append(TP / (TP + FN) if TP + FN else np.nan)
         squared = float((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
         mcc.append((TP * TN - FP * FN) / (np.sqrt(squared)) if squared else np.nan)
+        mcc0.append((TP * TN - FP * FN) / (np.sqrt(squared)) if squared else 0)
 
-    return mcc, prec, rec
+    return mcc, prec, rec, mcc0, prec0
 
 
 @njit()
@@ -192,10 +200,14 @@ def update_results_dict(results, all_N, DEAs, outlier_methods, FDRs, logFCs, ove
              "median_rep_adj": deepcopy(inner),
              "median_deg_adj": deepcopy(inner),
              "median_mcc": deepcopy(inner),
+             "median_mcc0": deepcopy(inner),
              "median_prec": deepcopy(inner),
+             "median_prec0": deepcopy(inner),
              "median_rec": deepcopy(inner),
              "median_mcc_adj": deepcopy(inner),
+             "median_mcc0_adj": deepcopy(inner),
              "median_prec_adj": deepcopy(inner),
+             "median_prec0_adj": deepcopy(inner),
              "median_rec_adj": deepcopy(inner),
              "gene_rep": deepcopy(inner)}
 
@@ -397,9 +409,11 @@ def process_results(results, outpath, outname, all_N, DEAs, outlier_methods, FDR
 
                     truth_df = truth_dict[fdr][logFC]
                     truth = df_lfc.index.isin(truth_df.index)
-                    mcc, prec, rec = get_array_metrics_numba(truth, boolarr_deg)
+                    mcc, prec, rec, mcc0, prec0 = get_array_metrics_numba(truth, boolarr_deg)
                     results[N][out][dea]["median_mcc"][fdr][logFC] = np.nanmedian(mcc)
+                    results[N][out][dea]["median_mcc0"][fdr][logFC] = np.median(mcc0)
                     results[N][out][dea]["median_prec"][fdr][logFC] = np.nanmedian(prec)
+                    results[N][out][dea]["median_prec0"][fdr][logFC] = np.median(prec0)
                     results[N][out][dea]["median_rec"][fdr][logFC] = np.nanmedian(rec)
 
     return results
@@ -458,9 +472,11 @@ def calc_rep_same_cohort_size(results, outpath, outname, all_N, DEAs, outlier_me
 
                         truth_df = truth_dict[fdr][logFC]
                         truth = df_nf_logfc.index.isin(truth_df.index)
-                        mcc, prec, rec = get_array_metrics_numba(truth, boolarr_deg)
+                        mcc, prec, rec, mcc0, prec0 = get_array_metrics_numba(truth, boolarr_deg)
                         results[Nf][out][dea]["median_mcc_adj"][fdr][logFC] = np.nanmedian(mcc)
+                        results[Nf][out][dea]["median_mcc0_adj"][fdr][logFC] = np.nanmedian(mcc0)
                         results[Nf][out][dea]["median_prec_adj"][fdr][logFC] = np.nanmedian(prec)
+                        results[Nf][out][dea]["median_prec0_adj"][fdr][logFC] = np.nanmedian(prec0)
                         results[Nf][out][dea]["median_rec_adj"][fdr][logFC] = np.nanmedian(rec)
 
     return results
@@ -777,7 +793,9 @@ def update_gsea_results_dict(results, all_N, DEAs, outlier_methods, gsea_methods
     outer = {"median_rep": deepcopy(inner),
              "median_terms": deepcopy(inner),
              "median_mcc": deepcopy(inner),
+             "median_mcc0": deepcopy(inner),
              "median_prec": deepcopy(inner),
+             "median_prec0": deepcopy(inner),
              "median_rec": deepcopy(inner),
              "median_rep_adj": deepcopy(inner),
              "median_terms_adj": deepcopy(inner),
@@ -787,7 +805,9 @@ def update_gsea_results_dict(results, all_N, DEAs, outlier_methods, gsea_methods
              "median_rep_common": deepcopy(inner),
              "median_terms_common": deepcopy(inner),
              "median_mcc_common": deepcopy(inner),
+             "median_mcc0_common": deepcopy(inner),
              "median_prec_common": deepcopy(inner),
+             "median_prec0_common": deepcopy(inner),
              "median_rec_common": deepcopy(inner),
              "median_rep_adj_common": deepcopy(inner),
              "median_terms_adj_common": deepcopy(inner),
@@ -1092,7 +1112,7 @@ def process_gsea_results(results, outpath, outname, all_N, DEAs, outlier_methods
                                 #     assert 0
 
                                 try:
-                                    mcc, prec, rec = get_array_metrics_numba(truth, boolarr)
+                                    mcc, prec, rec, mcc0, prec0 = get_array_metrics_numba(truth, boolarr)
                                 except ValueError:
                                     display(truth.shape)
                                     display(boolarr.shape)
@@ -1100,8 +1120,9 @@ def process_gsea_results(results, outpath, outname, all_N, DEAs, outlier_methods
                                     print(mode, library, gsea)
                                     assert 0
                                 results[N][out][dea][gsea][library]["median_mcc" + mode_suffix][fdr] = np.nanmedian(mcc)
-                                results[N][out][dea][gsea][library]["median_prec" + mode_suffix][fdr] = np.nanmedian(
-                                    prec)
+                                results[N][out][dea][gsea][library]["median_mcc0" + mode_suffix][fdr] = np.nanmedian(mcc0)
+                                results[N][out][dea][gsea][library]["median_prec" + mode_suffix][fdr] = np.nanmedian(prec)
+                                results[N][out][dea][gsea][library]["median_prec0" + mode_suffix][fdr] = np.nanmedian(prec0)
                                 results[N][out][dea][gsea][library]["median_rec" + mode_suffix][fdr] = np.nanmedian(rec)
     return results
 

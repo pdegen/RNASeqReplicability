@@ -6,13 +6,13 @@ import argparse
 import random
 import pandas as pd
 from outliers import get_outlier_patients
-from misc import Timer, paired_replicate_sampler, get_matching_treatment_col_ix
+from misc import Timer, paired_replicate_sampler, get_matching_treatment_col_ix, unpaired_replicate_sampler
 from DEA import run_dea
 from process import get_init_samples_from_cohort
 
 
 @Timer(name="decorator")
-def main(config, DEA_method, outlier_method, param_set):
+def main(config, DEA_method, outlier_method, param_set, sampler="paired"):
     """    
     Parameters
     ----------
@@ -45,7 +45,13 @@ def main(config, DEA_method, outlier_method, param_set):
         df_sub = df_full[samples_i]
     else:
         random.seed(cohort)
-        df_sub, _ = paired_replicate_sampler(df_full, replicates)
+        if sampler == "paired":
+            df_sub, _ = paired_replicate_sampler(df_full, replicates)
+        elif sampler == "unpaired":
+            df_sub, _ = unpaired_replicate_sampler(df_full, replicates)
+        else:
+            raise Exception(f"Invalid sampler: {sampler}")
+            
         logging.info(f"Using new subsample: {df_sub.columns.to_list()}")
         with open(f"{outpath}/config.json", "r+") as f:
             configdict = json.load(f)
@@ -87,5 +93,6 @@ if __name__ == "__main__":
     parser.add_argument('--DEA_method')
     parser.add_argument('--outlier_method')
     parser.add_argument('--param_set')
+    parser.add_argument('--sampler')
     args = parser.parse_args()
     main(**vars(args))

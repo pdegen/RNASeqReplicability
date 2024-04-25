@@ -101,6 +101,20 @@ def paired_replicate_sampler(df, n):
     return df.iloc[:, ind], ind
 
 
+def unpaired_replicate_sampler(df, n):
+    """
+    Sample a subset of replicates from a count matrix
+    df : pd.DataFrame, count data with k control columns followed by k case columns, for a total of k patients
+    n : Number of patients to resample, must be <= k
+    """
+    if len(df.columns) % 2 != 0: raise Exception("Input df must have even number of columns")
+    patients = len(df.columns) // 2
+    if patients < n: raise Exception(f"Number of samples must be smaller than total number of replicates! {len(df.columns)//2}")
+    ind_ctrl = np.array(random.sample(range(0, patients), n))
+    ind_case = np.array(random.sample(range(patients, 2*patients), n))
+    ind = np.array(list(ind_ctrl) + list(ind_case))
+    return df.iloc[:, ind], ind
+
 def get_grid_size(n, k=0, fill=False):
     """
     Given interger n, find grid of size l*m = n that comes closest to being a square

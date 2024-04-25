@@ -109,6 +109,7 @@ def run_multi_batch(config_params, all_N, n_cohorts, script_path, mode="check n_
     outname_original = config_params["outname"]
     outpath_original = config_params["outpath"]
     param_set = config_params['param_set']
+    sampler = config_params['sampler']
     total_jobs = 0
 
     for N in all_N:
@@ -172,7 +173,7 @@ def run_multi_batch(config_params, all_N, n_cohorts, script_path, mode="check n_
                 if len(job_ids) > 0:
 
                     if mode in ["send jobs", "just testing"]:
-                        command = f"sbatch --array={','.join(job_ids)} {script_path} {outpath_N} {outname_N} {DEA} {out} {param_set}"
+                        command = f"sbatch --array={','.join(job_ids)} {script_path} {outpath_N} {outname_N} {DEA} {out} {param_set} {sampler}"
                         logging.info(command)
 
                         if mode == "send jobs":
@@ -187,9 +188,9 @@ def run_multi_batch(config_params, all_N, n_cohorts, script_path, mode="check n_
                             outpath_c = Path(outpath_N + "/" + outname_c)
                             config_params_file = f"{outpath_c}/config.json"
                             if mode == "test main":
-                                main(config_params_file, DEA, out, param_set)
+                                main(config_params_file, DEA, out, param_set, sampler)
                             elif mode == "test main terminal":
-                                command = f"python3 ../scripts/main.py --config {config_params_file} --DEA_method {DEA} --outlier_method {out} --param_set {param_set}"
+                                command = f"python3 ../scripts/main.py --config {config_params_file} --DEA_method {DEA} --outlier_method {out} --param_set {param_set} --sampler {sampler}"
                                 logging.info(command)
                                 os.system(command)
 
