@@ -163,3 +163,4 @@ data/*
 !data/multi
 !data/clusterORA
 !data/ground_truth
+!data/*/*.meta.csv
