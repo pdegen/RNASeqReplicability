@@ -1,6 +1,7 @@
 library(edgeR)
 library(limma)
 library(dplyr)
+library(arrow)
 
 save_table <- function(table, outfile) {
     suppressPackageStartupMessages(require("feather"))
@@ -81,7 +82,7 @@ run_edgeR <- function(x, outfile, design, overwrite=FALSE, filter_expr=FALSE, to
         N <- ncol(x)/2
         condition <- factor(c(rep("N",N),rep("T",N)))
         design <- model.matrix(~condition)
-    } else if (Design=="unpaired_asymmetric") {
+    } else if (design=="unpaired_asymmetric") {
         if (N_control == 0) {stop("Design matrix has no control columns")}
         if (N_treat == 0) {stop("Design matrix has no treatment/condition columns")}
         condition <- factor(c(rep("N",N_control),rep("T",N_treat)))
@@ -98,11 +99,15 @@ run_edgeR <- function(x, outfile, design, overwrite=FALSE, filter_expr=FALSE, to
         other_vars <- setdiff(names(covariate_df), c("Condition", "X", "Sample"))
         print("Warning: hard-coded col names in design matrix")
         formula <- as.formula(paste("~", paste(c(other_vars, "Condition"), collapse = " + ")))
+        print(paste("Formula:",formula))
         design <- model.matrix(formula, data = covariate_df)
     }
     
-    if (verbose)
+    if (verbose) {
+        rank = qr(design)$rank
+        print(paste("Rank:",rank, "Cols:", ncol(design)))
         print(design)
+        }
     
     y <- DGEList(counts=x)
 
@@ -120,10 +125,10 @@ run_edgeR <- function(x, outfile, design, overwrite=FALSE, filter_expr=FALSE, to
     
     if (meta_only)
         return(y)
-    
+
     if (test=="lrt") fit <- glmFit(y,design)
-    else fit <- glmQLFit(y,design)
-    
+    else fit <- glmQLFit(y,design)       
+
     # Goodness-of-fit
     if (check_gof) {
         res.gof <- gof(fit, plot=FALSE)

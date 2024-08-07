@@ -620,6 +620,7 @@ def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_tests, overwrite=False, 
     os.system(f"mkdir -p ../data/multi")
 
     if Path(stats_dict_file).is_file() and not overwrite:
+        print("Loading existing file")
         with open(stats_dict_file, "rb") as f:
             stats_dict = pickle.load(f)
 
@@ -629,19 +630,20 @@ def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_tests, overwrite=False, 
                 datasets[data]["truth_stats"][lfc_test] = stats_dict[data]
         return datasets
 
-    stats_dict = {data: {fdr: {logFC: {} for logFC in logFCs} for fdr in FDRs} for data in datasets}
 
-    for data in datasets:
-        for lfc_test in lfc_tests:
+    for lfc_test in lfc_tests:
+        stats_dict = {data: {fdr: {logFC: {} for logFC in logFCs} for fdr in FDRs} for data in datasets}
+
+        for data in datasets:
 
             dea_dict = {dea: {fdr: {logfc: {"DEGs": None} for logfc in logFCs} for fdr in FDRs} for dea in DEAs}
             lfcs = []
             for dea in DEAs:
                 d = datasets[data]["datapath"]
-                
                 if dea != "wilcox":
                     p = Path(d.parent, datasets[data]["datapath"].stem + f".{dea}.lfc{lfc_test}.csv")
                     tab = pd.read_csv(p, index_col=0)
+                    print(f"DEGs test={lfc_test}", len(tab[tab["FDR"]<0.05]))
                 elif lfc_test == 0:
                     p = Path(d.parent, datasets[data]["datapath"].stem + f".deseq2.lfc{lfc_test}.csv")
                     tabd = pd.read_csv(p, index_col=0)
@@ -656,7 +658,7 @@ def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_tests, overwrite=False, 
                 for fdr in FDRs:
                     for logFC in logFCs:
                         dea_dict[dea][fdr][logFC]["DEGs"] = tab[(tab["FDR"] < fdr) & (tab["logFC"].abs() > logFC)]["logFC"]
-            
+
             # Store logFC truth df of all genes
             savepath = Path(datasets[data]["outpath"], "truth_lfc.csv")
             if overwrite or not Path(savepath).is_file():
