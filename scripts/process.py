@@ -643,7 +643,7 @@ def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_tests, overwrite=False, 
                 if dea != "wilcox":
                     p = Path(d.parent, datasets[data]["datapath"].stem + f".{dea}.lfc{lfc_test}.csv")
                     tab = pd.read_csv(p, index_col=0)
-                    print(f"DEGs test={lfc_test}", len(tab[tab["FDR"]<0.05]))
+                    #print(f"DEGs test={lfc_test}", len(tab[tab["FDR"]<0.05]))
                 elif lfc_test == 0:
                     p = Path(d.parent, datasets[data]["datapath"].stem + f".deseq2.lfc{lfc_test}.csv")
                     tabd = pd.read_csv(p, index_col=0)
