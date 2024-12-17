@@ -187,7 +187,34 @@ run_deseq2 <- function(x, outfile, design="paired", overwrite=FALSE, print_summa
                                   colData = coldata,
                                   design = ~ condition)
     }
-    else {stop("Test not implemented")}
+    else {
+
+        print("Constructing design matrix from df")
+        covariate_df = read.csv(design)
+        if (!("Condition" %in% colnames(covariate_df))) {stop("Error: 'Condition' column not found in dataframe")}
+        
+        covariate_df <- covariate_df %>%
+          mutate_if(is.character, as.factor)
+        
+        other_vars <- setdiff(names(covariate_df), c("Condition", "X", "Sample"))
+        print("Warning: hard-coded col names in design matrix")
+        formula <- as.formula(paste("~", paste(c(other_vars, "Condition"), collapse = " + ")))
+        print(paste("Formula:",formula))
+        design <- model.matrix(formula, data = covariate_df)
+
+        # Ensure your count matrix and metadata align
+        if ("X" %in% names(covariate_df)) {
+            rownames(covariate_df) <- covariate_df$X
+        } else if ("Sample" %in% names(covariate_df)) {
+            rownames(covariate_df) <- covariate_df$Sample
+        } else stop("Sample names not found in covariate df")
+                   
+        x <- x[, rownames(covariate_df)]  # Align count data with metadata
+        # Create DESeqDataSet object
+        dds <- DESeqDataSetFromMatrix(countData = x,
+                                      colData = covariate_df,
+                                      design = formula)
+    }
     
 
     
@@ -195,7 +222,8 @@ run_deseq2 <- function(x, outfile, design="paired", overwrite=FALSE, print_summa
         return(sizeFactors(estimateSizeFactors(dds)))
     
     dds <- DESeq(dds)
-    res <- results(dds, name="condition_T_vs_N", lfcThreshold=lfc, altHypothesis="greaterAbs", test="Wald")
+    contrastname <- resultsNames(dds)[grepl("Condition", resultsNames(dds))]
+    res <- results(dds, name=contrastname, lfcThreshold=lfc, altHypothesis="greaterAbs", test="Wald")
     
     if (print_summary) {print(summary(res))}
     
