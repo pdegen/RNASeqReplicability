@@ -60,6 +60,17 @@ def main(config, DEA_method, outlier_method, param_set, sampler="paired"):
             json.dump(configdict, f)
             f.truncate()
 
+    #### Construct covariate df to control for covariates
+
+    if DEA_kwargs["design"] == "custom":
+        logging.info(f"Constructing covariate df from file")
+        metadata = pd.read_csv(data.replace(".csv", ".meta.csv"), index_col=0)
+        
+        meta_sub = metadata.loc[df_sub.columns]
+        covariate_file = f"{outpath}/covariates.csv"
+        meta_sub.to_csv(covariate_file)
+        DEA_kwargs["design"] = covariate_file
+
     #### Find the outliers and remove from cohort
 
     if DEA_method == "edgerqlf" or outlier_method == "none":
@@ -96,3 +107,4 @@ if __name__ == "__main__":
     parser.add_argument('--sampler')
     args = parser.parse_args()
     main(**vars(args))
+	

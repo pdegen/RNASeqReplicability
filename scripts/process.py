@@ -131,17 +131,35 @@ def get_replicability_notop(list_list, method="jaccard", min_genes=0):
     return rep
 
 
+
 def delete_redundant_slurmfiles(outpath, outname, all_N, gsea=False) -> None:
     """
     Remove old slurm files of jobs that failed and have been redone
     """
 
+    prompt = """Note: Slurm files names are of form 'slurm-JobID_CohortID.suffix', where JobID is typically a large 7-8 digit number
+    This method assumes that newer jobs have greater job IDs, but recently I had the displeasure of finding out that the 
+    cluster-wide job counter was reset (maybe after the UBELIX upgrade to RockyLinux?)
+    Therefore, the assumption no longer holds.
+
+    Continue? (y or n)
+    """
+
+    while True:
+        user_input = input(prompt).strip().lower()
+        if user_input == 'y':
+            break
+        elif user_input == 'n':
+            return
+        else:
+            print("Please enter 'y' for yes or 'n' for no.")
+            
     slurm_folder = "gsea/slurm" if gsea else "slurm"
     tot_removed = 0
     for N in all_N:
         outpath_N = f"{outpath}/{outname}_N{N}"
-        cohorts = [f.name for f in os.scandir(outpath_N) if f.is_dir()]
-
+        cohorts = sorted([f.name for f in os.scandir(outpath_N) if f.is_dir()])
+        print(outpath_N)
         for cohort in cohorts:
             cohort_id = int(cohort.split("_")[-1])
             slurmpath = f"{outpath_N}/{cohort}/{slurm_folder}"
@@ -150,10 +168,11 @@ def delete_redundant_slurmfiles(outpath, outname, all_N, gsea=False) -> None:
 
             newest = []
             for sl in slurmfiles:
-                suffix = sl.split(".")[1:-1]
+                suffix = sl.split("/")[-1]
+                suffix = suffix.split(".")[1:-1]
                 suffix = ".".join(suffix)
                 if suffix in newest:
-                    logging.info(f"Removing {cohort} {suffix}")
+                    logging.info(f"Removing {sl}")
                     tot_removed += 1
                     os.system(f"rm {sl}")
                 else:
@@ -189,7 +208,9 @@ def get_init_samples_from_cohort(configfile):
     return configdict["samples_i"] if "samples_i" in configdict else []
 
 
-def update_results_dict(results, all_N, DEAs, outlier_methods, FDRs, logFCs, overwrite=False) -> dict:
+def update_results_dict(results, all_N, DEAs, outlier_methods, FDRs, logFCs, 
+                        overwrite=False, isSynthetic=False,
+                       return_empty=False) -> dict:
     """
     Add missing keys to results dict or create it from scratch
     """
@@ -211,11 +232,19 @@ def update_results_dict(results, all_N, DEAs, outlier_methods, FDRs, logFCs, ove
              "median_rec_adj": deepcopy(inner),
              "gene_rep": deepcopy(inner)}
 
-    if overwrite:
+    outer = outer | {key+("_sd" if "rep" in key else "_sem"): deepcopy(inner) for key, val in outer.items()}
+
+    if isSynthetic:
+        outer = outer | {key+"_syn": deepcopy(inner) for key in outer}
+
+    if overwrite or return_empty:
         logging.info("Creating results dict from scratch")
         results = {N: {out: {dea: deepcopy(outer) for dea in DEAs} | {"cohorts": {}} for out in outlier_methods} for N
                    in all_N}
         results["n_patients_df"] = {out: None for out in outlier_methods if out != "none"}
+        
+        if return_empty:
+            return results
 
     else:
         logging.info("Checking for missing keys")
@@ -364,10 +393,15 @@ def get_n_patients_df(results, all_N, outpath, outlier_method) -> pd.DataFrame:
 
 
 def process_results(results, outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFCs, lfc_test, param_set,
-                    overwrite=False) -> dict:
+                    overwrite=False, isSynthetic=False,
+                   return_metric_distribution = False) -> dict:
     """
     Calcualte median replicability, #DEG, MCC, precision, recall for one dataset
     """
+
+    if isSynthetic:
+        tab = pd.read_csv(f"{outpath}/{outname}.truth_syn.csv", index_col=0)
+        truth_dict_syn = {fdr: {logFC: tab[tab["logFC"].abs()>logFC] for logFC in logFCs} for fdr in FDRs}
 
     truth_dict = {
         fdr: {logFC: pd.read_csv(f"{outpath}/truth.fdr{fdr}.post_lfc{logFC}.lfc{lfc_test}.csv", index_col=0) for logFC
@@ -402,19 +436,41 @@ def process_results(results, outpath, outname, all_N, DEAs, outlier_methods, FDR
                     print("File not found:", f"{outpath_N}/all.FDR.{out}.{dea}.{param_set}.feather")
                     continue
 
+                suffixes = ["", "_syn"] if isSynthetic else [""]
+        
                 for fdr, logFC in to_process:
                     boolarr_deg = np.where((df_lfc.abs() > logFC) & (df_fdr < fdr), True, False)
-                    results[N][out][dea]["median_deg"][fdr][logFC] = np.median(np.sum(boolarr_deg, axis=0))
-                    results[N][out][dea]["median_rep"][fdr][logFC] = np.median(get_replicability_numba(boolarr_deg))
+                    degs = np.sum(boolarr_deg, axis=0)
 
-                    truth_df = truth_dict[fdr][logFC]
-                    truth = df_lfc.index.isin(truth_df.index)
-                    mcc, prec, rec, mcc0, prec0 = get_array_metrics_numba(truth, boolarr_deg)
-                    results[N][out][dea]["median_mcc"][fdr][logFC] = np.nanmedian(mcc)
-                    results[N][out][dea]["median_mcc0"][fdr][logFC] = np.median(mcc0)
-                    results[N][out][dea]["median_prec"][fdr][logFC] = np.nanmedian(prec)
-                    results[N][out][dea]["median_prec0"][fdr][logFC] = np.median(prec0)
-                    results[N][out][dea]["median_rec"][fdr][logFC] = np.nanmedian(rec)
+                    for suffix in suffixes:
+
+                        truth_dict_i = truth_dict if suffix == "" else truth_dict_syn
+                        
+                        results[N][out][dea][f"median_deg{suffix}"][fdr][logFC] = np.median(degs)
+                        #results[N][out][dea][f"median_deg_sem{suffix}"][fdr][logFC] = np.std(degs) / np.sqrt(len(degs))
+    
+                        rep = get_replicability_numba(boolarr_deg)
+                        results[N][out][dea][f"median_rep{suffix}"][fdr][logFC] = np.median(rep)
+                        #results[N][out][dea][f"median_rep_sd{suffix}"][fdr][logFC] = np.std(rep) # don't calculate sem since rep vals are correlated
+    
+                        truth_df = truth_dict_i[fdr][logFC]
+                        truth = df_lfc.index.isin(truth_df.index)
+                        mcc, prec, rec, mcc0, prec0 = get_array_metrics_numba(truth, boolarr_deg)
+
+                        if return_metric_distribution:
+                            print("Returning early after first iteration")
+                            return mcc, prec, rec, mcc0, prec0, degs, rep
+                        
+                        results[N][out][dea][f"median_mcc{suffix}"][fdr][logFC] = np.nanmedian(mcc)
+                        #results[N][out][dea][f"median_mcc_sem{suffix}"][fdr][logFC] = np.nanstd(mcc) / np.sqrt((~np.isnan(mcc)).sum())
+                        results[N][out][dea][f"median_mcc0{suffix}"][fdr][logFC] = np.median(mcc0)
+                        #results[N][out][dea][f"median_mcc0_sem{suffix}"][fdr][logFC] = np.median(mcc0) / np.sqrt(len(mcc0))
+                        results[N][out][dea][f"median_prec{suffix}"][fdr][logFC] = np.nanmedian(prec)
+                        #results[N][out][dea][f"median_prec_sem{suffix}"][fdr][logFC] = np.nanmedian(prec) / np.sqrt((~np.isnan(prec)).sum())
+                        results[N][out][dea][f"median_prec0{suffix}"][fdr][logFC] = np.median(prec0)
+                        #results[N][out][dea][f"median_prec0_sem{suffix}"][fdr][logFC] = np.median(prec0) / np.sqrt(len(prec0))
+                        results[N][out][dea][f"median_rec{suffix}"][fdr][logFC] = np.nanmedian(rec)
+                        #results[N][out][dea][f"median_rec_sem{suffix}"][fdr][logFC] = np.nanmedian(rec) / np.sqrt(len(rec))
 
     return results
 
@@ -532,7 +588,7 @@ def merge_tables(outpath, outname, all_N, DEAs, outlier_methods, param_set, n_co
 
 @Timer(name="decorator")
 def process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFCs, lfc_test, param_set, overwrite=False,
-                     overwrite_merged=False, n_cohorts=""):
+                     overwrite_merged=False, n_cohorts="", isSynthetic=False):
     #### Create or load the results dict
 
     resultsfile = f"{outpath}/results.{param_set}.txt"
@@ -546,7 +602,8 @@ def process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFC
         with open(resultsfile, "rb") as f:
             results = pickle.load(f)
 
-    results = update_results_dict(results, all_N, DEAs, outlier_methods, FDRs, logFCs, overwrite=overwrite)
+    results = update_results_dict(results, all_N, DEAs, outlier_methods, FDRs, logFCs, 
+                                  overwrite=overwrite, isSynthetic=isSynthetic)
 
     #### Process
 
@@ -567,7 +624,7 @@ def process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFC
     # Calculate median replicability, median #DEG, etc.
     logging.info("Processing results...")
     results = process_results(results, outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFCs, lfc_test,
-                              param_set, overwrite)
+                              param_set, overwrite, isSynthetic)
 
     logging.info("\nProcessing adjusted results...")
     # Calculate median replicability, median #DEG, etc. adjusted for outlier removal
@@ -642,7 +699,11 @@ def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_tests, overwrite=False, 
                 d = datasets[data]["datapath"]
                 if dea != "wilcox":
                     p = Path(d.parent, datasets[data]["datapath"].stem + f".{dea}.lfc{lfc_test}.csv")
-                    tab = pd.read_csv(p, index_col=0)
+                    try:
+                        tab = pd.read_csv(p, index_col=0)
+                    except FileNotFoundError:
+                        print("truth not found:",data,dea,lfc_test)
+                        tab = pd.DataFrame(np.full((1, 2), np.nan), columns=["logFC","FDR"])
                     #print(f"DEGs test={lfc_test}", len(tab[tab["FDR"]<0.05]))
                 elif lfc_test == 0:
                     p = Path(d.parent, datasets[data]["datapath"].stem + f".deseq2.lfc{lfc_test}.csv")
@@ -677,7 +738,7 @@ def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_tests, overwrite=False, 
                         
                         if dea == "wilcox" and lfc_test != 0:
                             continue
-                        
+
                         sets.append(set(dea_dict[dea][fdr][logFC]["DEGs"].index))
                         stats_dict[data][fdr][logFC][dea] = len(sets[-1])
 

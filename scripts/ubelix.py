@@ -7,7 +7,7 @@ from pathlib import Path
 from main import main
 
 
-def adjust_job_time(N, DEA_method, outlier_method, script_path) -> int:
+def adjust_job_time(N, DEA_method, design, outlier_method, script_path, param_set="") -> int:
     """Adjust the maximum job time specified in the shell script for sending batch jobs to Ubelix"""
 
     time_str = "#SBATCH --time="
@@ -31,6 +31,11 @@ def adjust_job_time(N, DEA_method, outlier_method, script_path) -> int:
                 max_time = int(max(max_time, 1))
 
                 if DEA_method != "edgerqlf": max_time = 2 + int(N / 8)
+
+                # Note Aug 18: for some reason formal lfc 2 takes longer than usual? or was cluster just drunk today?
+                if param_set == "p5": max_time = 5
+
+                if design == "custom": max_time+=2
 
                 lines[i] = f"#SBATCH --time=00:{max_time:02.0f}:00    # Each task takes max {max_time:02.0f} minutes\n"
 
@@ -108,10 +113,14 @@ def all_outliers_found(outpath_N, outlier_method, n_cohorts, param_set) -> bool:
 def run_multi_batch(config_params, all_N, n_cohorts, script_path, mode="check n_jobs"):
     outname_original = config_params["outname"]
     outpath_original = config_params["outpath"]
+    design = config_params["DEA_kwargs"][list(config_params["DEA_kwargs"].keys())[0]]["design"]
     param_set = config_params['param_set']
     sampler = config_params['sampler']
     total_jobs = 0
 
+    # Convenience command to send all jobs at once; needed after SLURM update made it impossible to send jobs from within interactive job
+    mega_command = ""
+    
     for N in all_N:
 
         outname_N = outname_original + "_N" + str(N)
@@ -166,9 +175,9 @@ def run_multi_batch(config_params, all_N, n_cohorts, script_path, mode="check n_
                             f.write(configjson)
 
                 # Send the jobs
-                max_time = adjust_job_time(N, DEA_method=DEA, outlier_method=out, script_path=script_path)
-                logging.info(
-                    f"\n{'Sending' if mode != 'just testing' else 'Testing'} {len(job_ids)} jobs for N={N}, DEA={DEA}, out={out}, max time: {max_time} min")
+                max_time = adjust_job_time(N, DEA_method=DEA, design=design, outlier_method=out, script_path=script_path, param_set=param_set)
+                msg = f"\n{'#Sending' if mode != 'just testing' else '#Testing'} {len(job_ids)} jobs for N={N}, DEA={DEA}, out={out}, max time: {max_time} min"
+                logging.info(msg)
                 total_jobs += len(job_ids)
                 if len(job_ids) > 0:
 
@@ -179,7 +188,8 @@ def run_multi_batch(config_params, all_N, n_cohorts, script_path, mode="check n_
                         if mode == "send jobs":
                             os.system(command)
                         elif mode == "just testing":
-                            logging.info("Just testing...")
+                            logging.info("#Just testing...")
+                            mega_command += command + "; "
 
                     elif mode in ["test main", "test main terminal"]:
                         from main import main
@@ -195,7 +205,10 @@ def run_multi_batch(config_params, all_N, n_cohorts, script_path, mode="check n_
                                 os.system(command)
 
     logging.info(f"Total jobs: {total_jobs}")
-
+    if mode == "just testing": 
+        #logging.info(mega_command)
+        print("==================")
+        print(mega_command)
 
 def run_gsea_batch(config_params, all_N, n_cohorts, libraries, gsea_script_path, mode="just testing", sleep_seconds=0):
     outname_original = config_params["outname"]

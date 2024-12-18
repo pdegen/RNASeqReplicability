@@ -18,6 +18,9 @@ def open_table(file):
 
         if "Row" in tab:
             tab.set_index("Row", inplace=True)
+            #synthetic data: index should be stored as dtype int
+            if tab.sort_index().index[0] == "1":
+                tab.index = tab.index.astype(int)
         elif "index" in tab:
             tab.set_index("index", inplace=True)
         elif "Term ID" in tab and not tab["Term ID"][0].startswith("hsa"):
