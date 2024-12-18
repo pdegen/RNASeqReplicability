@@ -6,7 +6,25 @@ from pathlib import Path
 from R_wrappers import pd_to_R
 from misc import Timer
 
-
+def load_rprofile():
+    print("loading .Rprofile...")
+    # Set the working directory to the project root (where .Rprofile is located)
+    cwd = os.getcwd()
+    print(cwd)
+    project_root = Path(os.getcwd()).parent
+    os.chdir(str(project_root))
+    
+    # Manually source .Rprofile to ensure it is loaded
+    rprofile_path = project_root / '.Rprofile'
+    if rprofile_path.exists():
+        ro.r['source'](str(rprofile_path))
+        print(".Rprofile loaded successfully")
+    else:
+        print(".Rprofile not found in project root")
+        
+    os.chdir(cwd)
+    print(cwd)
+    
 def run_dea(df, outfile, method, overwrite, design="paired", lfc=0, **kwargs):
     """Wrapper to call appropriate R method to run differential expression analysis
         
@@ -20,6 +38,7 @@ def run_dea(df, outfile, method, overwrite, design="paired", lfc=0, **kwargs):
     kwargs: additional keyword arguments passed to R method
     """
 
+    load_rprofile()
     # This function should be called from a notebook in the notebooks folder, we need to load a script from the scripts folder
     wd = Path(str(Path(os.getcwd()).parent) + "/scripts/R_functions.r")
     ro.r['source'](str(wd))  # Loading the R script
@@ -61,8 +80,14 @@ def run_dea_on_full_data(datasets, DEAs, lfcs, design, overwrite=False, truncate
 
     for d in datasets:
         dpath = str(datasets[d]["datapath"])
+        mfile = str(datasets[d]["metafile"])
+        if design == "custom": 
+            design_i = mfile
         for lfc in lfcs:
             for dea in DEAs:
+                if dea == "wilcox" and design == "custom":
+                    logging.info("Skipping Wilcox test with general design matrix")
+                    continue
                 respath = Path(dpath.split("csv")[0] + dea + ".lfc" + str(lfc) + ".csv")
                 if not respath.is_file() or overwrite:
                     
@@ -70,6 +95,7 @@ def run_dea_on_full_data(datasets, DEAs, lfcs, design, overwrite=False, truncate
                         continue
                     
                     logging.info(f"Running DEA for {d} {dea} lfc{lfc}")
+                    print(os.system("pwd"))
                     df_full = pd.read_csv(dpath, index_col=0)
 
                     if truncate_cohorts > 0:
@@ -80,24 +106,24 @@ def run_dea_on_full_data(datasets, DEAs, lfcs, design, overwrite=False, truncate
 
                     with Timer(name="context manager"):
                         if dea == "deseq2":
-                            run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design,
+                            run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design_i,
                                     cols_to_keep="all", lfc=lfc)
                         elif dea == "edgerlrt":
-                            run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design,
+                            run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design_i,
                                     cols_to_keep="all", test="lrt", lfc=lfc)
                         elif dea == "edgerqlf":
-                            run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design,
+                            run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design_i,
                                     cols_to_keep="all", test="qlf", lfc=lfc)
                         elif dea == "wilcox":
                             if lfc == 0:
-                                run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design)
+                                run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design_i)
                         else:
                             raise Exception(f"Method {dea} not implemented")
 
 
 def normalize_counts(df):
     """Use DESeq2 estimateSizeFactors to normalize a count matrix"""
-
+    load_rprofile()
     # This function should be called from a notebook in the notebooks folder, we need to load a script from the scripts folder
     wd = Path(str(Path(os.getcwd()).parent) + "/scripts/R_functions.r")
     ro.r['source'](str(wd))  # Loading the R script
