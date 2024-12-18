@@ -101,6 +101,14 @@ run_edgeR <- function(x, outfile, design, overwrite=FALSE, filter_expr=FALSE, to
         formula <- as.formula(paste("~", paste(c(other_vars, "Condition"), collapse = " + ")))
         print(paste("Formula:",formula))
         design <- model.matrix(formula, data = covariate_df)
+
+        # Ensure your count matrix and metadata align
+        if ("X" %in% names(covariate_df)) {
+            rownames(covariate_df) <- covariate_df$X
+        } else if ("Sample" %in% names(covariate_df)) {
+            rownames(covariate_df) <- covariate_df$Sample
+        } else stop("Sample names not found in covariate df")
+        
     }
     
     if (verbose) {
@@ -208,7 +216,7 @@ run_deseq2 <- function(x, outfile, design="paired", overwrite=FALSE, print_summa
         } else if ("Sample" %in% names(covariate_df)) {
             rownames(covariate_df) <- covariate_df$Sample
         } else stop("Sample names not found in covariate df")
-                   
+        
         x <- x[, rownames(covariate_df)]  # Align count data with metadata
         # Create DESeqDataSet object
         dds <- DESeqDataSetFromMatrix(countData = x,
