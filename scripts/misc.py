@@ -88,6 +88,11 @@ def get_matching_treatment_col_ix(df, control_cols) -> list:
     ix += [c + len(df.columns) // 2 for c in ix]
     return ix
 
+def replicate_sampler(df: pd.DataFrame, n: int, ispaired: bool):
+    if ispaired:
+        return paired_replicate_sampler(df, n)
+    else:
+        return unpaired_replicate_sampler(df, n)
 
 def paired_replicate_sampler(df, n):
     """

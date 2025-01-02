@@ -209,8 +209,11 @@ def get_init_samples_from_cohort(configfile):
 
 
 def update_results_dict(results, all_N, DEAs, outlier_methods, FDRs, logFCs, 
-                        overwrite=False, isSynthetic=False,
-                       return_empty=False) -> dict:
+                        overwrite=False, 
+                        isSynthetic=False,
+                        return_empty=False,
+                        calc_adjusted_metrics=False
+                       ) -> dict:
     """
     Add missing keys to results dict or create it from scratch
     """
@@ -218,24 +221,22 @@ def update_results_dict(results, all_N, DEAs, outlier_methods, FDRs, logFCs,
     inner = {fdr: {logfc: None for logfc in logFCs} for fdr in FDRs}
     outer = {"median_rep": deepcopy(inner),
              "median_deg": deepcopy(inner),
-             "median_rep_adj": deepcopy(inner),
-             "median_deg_adj": deepcopy(inner),
              "median_mcc": deepcopy(inner),
              "median_mcc0": deepcopy(inner),
              "median_prec": deepcopy(inner),
              "median_prec0": deepcopy(inner),
              "median_rec": deepcopy(inner),
-             "median_mcc_adj": deepcopy(inner),
-             "median_mcc0_adj": deepcopy(inner),
-             "median_prec_adj": deepcopy(inner),
-             "median_prec0_adj": deepcopy(inner),
-             "median_rec_adj": deepcopy(inner),
              "gene_rep": deepcopy(inner)}
 
+    if calc_adjusted_metrics:
+        outer = outer | {key+"_adj": deepcopy(inner) for key in outer}
+        
     outer = outer | {key+("_sd" if "rep" in key else "_sem"): deepcopy(inner) for key, val in outer.items()}
 
     if isSynthetic:
         outer = outer | {key+"_syn": deepcopy(inner) for key in outer}
+
+    outer = outer | {key+"_method": deepcopy(inner) for key in outer}
 
     if overwrite or return_empty:
         logging.info("Creating results dict from scratch")
@@ -312,7 +313,9 @@ def check_failed_jobs_due_to_time_and_move(path) -> None:
             logging.info(f"{slurmname}\n{e}")
 
 
-def process_slurm(results, outpath, outname, all_N, DEAs, outlier_methods, param_set, n_cohorts="") -> dict:
+def process_slurm(results, outpath, outname, all_N, DEAs, outlier_methods, param_set, n_cohorts="",
+                  read_outliers=False,
+                 ) -> dict:
     """
     Process the slurm log files: copy outlier patients to results dict; check if any jobs failed
     """
@@ -337,33 +340,45 @@ def process_slurm(results, outpath, outname, all_N, DEAs, outlier_methods, param
 
                 # Look for failed jobs
                 failed = False
+                elapsed_time = False
+                not_full_rank = False
+                printline = None
                 for line in lines:
                     if line.find('srun: error:') != -1 or line.find('slurmstepd: error:') != -1:
                         failed = True
-
+                        printline = line
                     # If this line is found, it means the code finished successfully despite slurm errors
                     if line.find('Elapsed time:') != -1:
+                        elapsed_time = True
+                    if line.find("matrix not of full rank") != -1 or line.find("matrix not full rank") != -1 or line.find("No residual df") != -1:
+                        printline = line
+                        not_full_rank = True
+                        logging.info(f"Removing cohort {cohort}")
+                        os.system(f"rm -r {outpath_N}/{cohort}")
                         break
-                else:
-                    if failed:
-                        failed_slurmfiles += 1
-                        logging.info(f"{cohort} {slurm.split('/')[-1]} {line}")
+                if (failed and not elapsed_time) or not_full_rank:
+                    failed_slurmfiles += 1
+                    logging.info(f"{cohort} {slurm.split('/')[-1]} {printline}")
 
-                        # Read outliers and store in results file
-                for line in lines:
-                    if line.startswith("Outlier method: "):
-                        out = line.split("Outlier method: ")[-1][:-1]
-                    elif line.startswith("Outliers_f: "):
-                        outliers = line.split("Outliers_f: ")[1]
-                        outliers = outliers[2:-3].split("', '")
-                        if outliers[0] == "": outliers = []
-                        outliers = outliers[:len(outliers) // 2]  # store only control samples
-                        try:
-                            results[N][out]["cohorts"][cohort_id]["outliers"] = outliers
-                        except KeyError:
-                            results[N][out]["cohorts"][cohort_id] = {}
-                            results[N][out]["cohorts"][cohort_id]["outliers"] = outliers
-                        del out
+                if not_full_rank:
+                    break
+                    
+                # Read outliers and store in results file
+                if read_outliers:
+                    for line in lines:
+                        if line.startswith("Outlier method: "):
+                            out = line.split("Outlier method: ")[-1][:-1]
+                        elif line.startswith("Outliers_f: "):
+                            outliers = line.split("Outliers_f: ")[1]
+                            outliers = outliers[2:-3].split("', '")
+                            if outliers[0] == "": outliers = []
+                            outliers = outliers[:len(outliers) // 2]  # store only control samples
+                            try:
+                                results[N][out]["cohorts"][cohort_id]["outliers"] = outliers
+                            except KeyError:
+                                results[N][out]["cohorts"][cohort_id] = {}
+                                results[N][out]["cohorts"][cohort_id]["outliers"] = outliers
+                            del out
 
     logging.info(f"{failed_slurmfiles} jobs failed out of {total_slurmfiles}")
     return results
@@ -393,8 +408,10 @@ def get_n_patients_df(results, all_N, outpath, outlier_method) -> pd.DataFrame:
 
 
 def process_results(results, outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFCs, lfc_test, param_set,
-                    overwrite=False, isSynthetic=False,
-                   return_metric_distribution = False) -> dict:
+                    overwrite = False,
+                    isSynthetic = False,
+                    return_metric_distribution = False
+                   ) -> dict:
     """
     Calcualte median replicability, #DEG, MCC, precision, recall for one dataset
     """
@@ -413,7 +430,9 @@ def process_results(results, outpath, outname, all_N, DEAs, outlier_methods, FDR
 
         for out in outlier_methods:
             for dea in DEAs:
-
+                
+                method_truth_df = pd.read_csv(f"{outpath}/{outname}.{dea}.lfc{lfc_test}.csv", index_col=0)
+                
                 # Check which results already exist
                 to_process = list(product(*[FDRs, logFCs]))
                 for fdr, logFC in list(product(*[FDRs, logFCs])):
@@ -422,7 +441,8 @@ def process_results(results, outpath, outname, all_N, DEAs, outlier_methods, FDR
                             (results[N][out][dea]["median_deg"][fdr][logFC] is not None)):
                         to_process.remove((fdr, logFC))
 
-                if len(to_process) < 1: continue
+                if len(to_process) < 1:
+                    continue
 
                 if dea == "wilcox":
                     # Since we Wilcox doesn't estimate lfc but we use DESeq2 to normalize counts, simply use DESeq2 for lfc estimates
@@ -437,14 +457,13 @@ def process_results(results, outpath, outname, all_N, DEAs, outlier_methods, FDR
                     continue
 
                 suffixes = ["", "_syn"] if isSynthetic else [""]
+                suffixes += [s+"_method" for s in suffixes]
         
                 for fdr, logFC in to_process:
                     boolarr_deg = np.where((df_lfc.abs() > logFC) & (df_fdr < fdr), True, False)
                     degs = np.sum(boolarr_deg, axis=0)
 
                     for suffix in suffixes:
-
-                        truth_dict_i = truth_dict if suffix == "" else truth_dict_syn
                         
                         results[N][out][dea][f"median_deg{suffix}"][fdr][logFC] = np.median(degs)
                         #results[N][out][dea][f"median_deg_sem{suffix}"][fdr][logFC] = np.std(degs) / np.sqrt(len(degs))
@@ -452,8 +471,13 @@ def process_results(results, outpath, outname, all_N, DEAs, outlier_methods, FDR
                         rep = get_replicability_numba(boolarr_deg)
                         results[N][out][dea][f"median_rep{suffix}"][fdr][logFC] = np.median(rep)
                         #results[N][out][dea][f"median_rep_sd{suffix}"][fdr][logFC] = np.std(rep) # don't calculate sem since rep vals are correlated
-    
-                        truth_df = truth_dict_i[fdr][logFC]
+
+                        if suffix.endswith("_method"):
+                            truth_df = method_truth_df[(method_truth_df["FDR"]<fdr) & (method_truth_df["logFC"].abs()>logFC)]
+                        else:
+                            truth_dict_i = truth_dict if suffix == "" else truth_dict_syn
+                            truth_df = truth_dict_i[fdr][logFC]
+                        
                         truth = df_lfc.index.isin(truth_df.index)
                         mcc, prec, rec, mcc0, prec0 = get_array_metrics_numba(truth, boolarr_deg)
 
@@ -587,8 +611,14 @@ def merge_tables(outpath, outname, all_N, DEAs, outlier_methods, param_set, n_co
 
 
 @Timer(name="decorator")
-def process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFCs, lfc_test, param_set, overwrite=False,
-                     overwrite_merged=False, n_cohorts="", isSynthetic=False):
+def process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFCs, lfc_test, param_set, 
+                     overwrite=False,
+                     overwrite_merged=False, 
+                     n_cohorts="", 
+                     isSynthetic=False,
+                     calc_adjusted_metrics=False,
+                    ):
+    
     #### Create or load the results dict
 
     resultsfile = f"{outpath}/results.{param_set}.txt"
@@ -626,9 +656,10 @@ def process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFC
     results = process_results(results, outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFCs, lfc_test,
                               param_set, overwrite, isSynthetic)
 
-    logging.info("\nProcessing adjusted results...")
-    # Calculate median replicability, median #DEG, etc. adjusted for outlier removal
-    results = calc_rep_same_cohort_size(results, outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFCs, lfc_test,
+    if calc_adjusted_metrics:
+        logging.info("\nProcessing adjusted results...")
+        # Calculate median replicability, median #DEG, etc. adjusted for outlier removal
+        results = calc_rep_same_cohort_size(results, outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFCs, lfc_test,
                                         param_set)
 
     #### Save results

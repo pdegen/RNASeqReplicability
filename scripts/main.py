@@ -6,10 +6,44 @@ import argparse
 import random
 import pandas as pd
 from outliers import get_outlier_patients
-from misc import Timer, paired_replicate_sampler, get_matching_treatment_col_ix, unpaired_replicate_sampler
+from misc import Timer, replicate_sampler, get_matching_treatment_col_ix
 from DEA import run_dea
 from process import get_init_samples_from_cohort
 
+def subsample(datapath, outpath, replicates, sampler, seed=None, verbose=False, return_df=True):
+
+    #### Get the df for this cohort
+
+    configfile = f"{outpath}/config.json"
+    samples_i = get_init_samples_from_cohort(configfile)
+
+    if len(samples_i) == 2 * replicates:
+        if verbose:
+            logging.info(f"Using existing subsample: {samples_i}")
+        if not return_df: return
+        df_full = pd.read_csv(datapath, index_col=0)
+        df_sub = df_full[samples_i]
+    else:
+        df_full = pd.read_csv(datapath, index_col=0)
+        if seed:
+            random.seed(seed)#random.seed(cohort)
+        if sampler == "paired":
+            df_sub, _ = replicate_sampler(df_full, replicates, ispaired=True)
+        elif sampler == "unpaired":
+            df_sub, _ = replicate_sampler(df_full, replicates, ispaired=False)
+        else:
+            raise Exception(f"Invalid sampler: {sampler}")
+            
+        if verbose: logging.info(f"Using new subsample: {df_sub.columns.to_list()}")
+        with open(f"{outpath}/config.json", "r+") as f:
+            configdict = json.load(f)
+            configdict["samples_i"] = df_sub.columns.to_list()
+            f.seek(0)
+            json.dump(configdict, f)
+            f.truncate()
+
+    if return_df:
+        return df_sub
 
 @Timer(name="decorator")
 def main(config, DEA_method, outlier_method, param_set, sampler="paired"):
@@ -28,43 +62,21 @@ def main(config, DEA_method, outlier_method, param_set, sampler="paired"):
         j = json.load(f)
         cohort = j["Cohort"]
         config_params = j["config_params"][param_set]
-        DEA_kwargs = config_params["DEA_kwargs"][DEA_method]
-        outlier_kwargs = config_params["outlier_kwargs"][outlier_method]
+        
+    DEA_kwargs = config_params["DEA_kwargs"][DEA_method]
+    outlier_kwargs = config_params["outlier_kwargs"][outlier_method]
+    datapath = config_params["data"]
+    outpath = config_params["outpath"]
+    outname = config_params["outname"]
+    replicates = config_params["replicates"]
 
-    data, outpath, outname, replicates = config_params["data"], config_params["outpath"], config_params["outname"], \
-    config_params["replicates"]
-
-    #### Get the df for this cohort
-
-    configfile = f"{outpath}/config.json"
-    samples_i = get_init_samples_from_cohort(configfile)
-    df_full = pd.read_csv(data, index_col=0)
-
-    if len(samples_i) == 2 * replicates:
-        logging.info(f"Using existing subsample: {samples_i}")
-        df_sub = df_full[samples_i]
-    else:
-        random.seed(cohort)
-        if sampler == "paired":
-            df_sub, _ = paired_replicate_sampler(df_full, replicates)
-        elif sampler == "unpaired":
-            df_sub, _ = unpaired_replicate_sampler(df_full, replicates)
-        else:
-            raise Exception(f"Invalid sampler: {sampler}")
-            
-        logging.info(f"Using new subsample: {df_sub.columns.to_list()}")
-        with open(f"{outpath}/config.json", "r+") as f:
-            configdict = json.load(f)
-            configdict["samples_i"] = df_sub.columns.to_list()
-            f.seek(0)
-            json.dump(configdict, f)
-            f.truncate()
+    df_sub = subsample(datapath, outpath, replicates, sampler, verbose=True)
 
     #### Construct covariate df to control for covariates
 
     if DEA_kwargs["design"] == "custom":
         logging.info(f"Constructing covariate df from file")
-        metadata = pd.read_csv(data.replace(".csv", ".meta.csv"), index_col=0)
+        metadata = pd.read_csv(datapath.replace(".csv", ".meta.csv"), index_col=0)
         
         meta_sub = metadata.loc[df_sub.columns]
         covariate_file = f"{outpath}/covariates.csv"

@@ -4,7 +4,7 @@ import glob
 import json
 import time
 from pathlib import Path
-from main import main
+from main import main, subsample
 
 
 def adjust_job_time(N, DEA_method, design, outlier_method, script_path, param_set="") -> int:
@@ -35,7 +35,7 @@ def adjust_job_time(N, DEA_method, design, outlier_method, script_path, param_se
                 # Note Aug 18: for some reason formal lfc 2 takes longer than usual? or was cluster just drunk today?
                 if param_set == "p5": max_time = 5
 
-                if design == "custom": max_time+=2
+                if design == "custom": max_time+=3
 
                 lines[i] = f"#SBATCH --time=00:{max_time:02.0f}:00    # Each task takes max {max_time:02.0f} minutes\n"
 
@@ -110,12 +110,12 @@ def all_outliers_found(outpath_N, outlier_method, n_cohorts, param_set) -> bool:
     return True
 
 
-def run_multi_batch(config_params, all_N, n_cohorts, script_path, mode="check n_jobs"):
+def run_multi_batch(config_params, all_N, n_cohorts, script_path, mode="check n_jobs", trysubsample=True):
     outname_original = config_params["outname"]
     outpath_original = config_params["outpath"]
+    sampler = config_params["sampler"]
     design = config_params["DEA_kwargs"][list(config_params["DEA_kwargs"].keys())[0]]["design"]
     param_set = config_params['param_set']
-    sampler = config_params['sampler']
     total_jobs = 0
 
     # Convenience command to send all jobs at once; needed after SLURM update made it impossible to send jobs from within interactive job
@@ -150,12 +150,14 @@ def run_multi_batch(config_params, all_N, n_cohorts, script_path, mode="check n_
                     config_params_c["outpath"] = str(outpath_c)
                     config_params_c["outname"] = outname_c
 
-                    if outpath_c.exists():
+                    configfile = Path(f"{outpath_c}/config.json")
+
+                    if outpath_c.exists() and configfile.exists():
                         if not (Path(f"{outpath_c}/tab.{out}.{DEA}.{param_set}.csv").exists() or Path(
                                 f"{outpath_c}/tab.{out}.{DEA}.{param_set}.feather").exists()):
                             job_ids.append(str(cohort))
                             # Update the config file
-                            with open(f"{outpath_c}/config.json", "r+") as f:
+                            with open(configfile, "r+") as f:
                                 configdict = json.load(f)
                                 configdict["config_params"][param_set] = config_params_c
                                 f.seek(0)
@@ -165,14 +167,19 @@ def run_multi_batch(config_params, all_N, n_cohorts, script_path, mode="check n_
                     else:
                         os.system(f"mkdir -p {outpath_c}")
                         job_ids.append(str(cohort))
-                        # Create the config file
-                        with open(f"{outpath_c}/config.json", "w") as f:
-                            configdict = {
-                                "Cohort": cohort,
-                                "config_params": {param_set: config_params_c}
-                            }
-                            configjson = json.dumps(configdict)
-                            f.write(configjson)
+                        if not configfile.exists():
+                            # Create the config file
+                            with open(configfile, "w") as f:
+                                configdict = {
+                                    "Cohort": cohort,
+                                    "config_params": {param_set: config_params_c}
+                                }
+                                configjson = json.dumps(configdict)
+                                f.write(configjson)
+
+                    if trysubsample:
+                        datapath = config_params["data"]
+                        subsample(datapath, outpath_c, N, sampler, return_df=False)
 
                 # Send the jobs
                 max_time = adjust_job_time(N, DEA_method=DEA, design=design, outlier_method=out, script_path=script_path, param_set=param_set)
@@ -209,6 +216,7 @@ def run_multi_batch(config_params, all_N, n_cohorts, script_path, mode="check n_
         #logging.info(mega_command)
         print("==================")
         print(mega_command)
+        print("\n\n==================")
 
 def run_gsea_batch(config_params, all_N, n_cohorts, libraries, gsea_script_path, mode="just testing", sleep_seconds=0):
     outname_original = config_params["outname"]
