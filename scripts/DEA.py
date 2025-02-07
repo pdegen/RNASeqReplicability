@@ -6,6 +6,8 @@ from pathlib import Path
 from R_wrappers import pd_to_R
 from misc import Timer
 
+from rpy2.rinterface_lib.callbacks import logger as rpy2_logger
+
 def load_rprofile():
     print("loading .Rprofile...")
     # Set the working directory to the project root (where .Rprofile is located)
@@ -25,7 +27,7 @@ def load_rprofile():
     os.chdir(cwd)
     print(cwd)
     
-def run_dea(df, outfile, method, overwrite, design="paired", lfc=0, **kwargs):
+def run_dea(df, outfile, method, overwrite, design="paired", lfc=0, verbose=False, **kwargs):
     """Wrapper to call appropriate R method to run differential expression analysis
         
     Parameters
@@ -46,6 +48,9 @@ def run_dea(df, outfile, method, overwrite, design="paired", lfc=0, **kwargs):
     # Converting pd to R dataframe
     df_r = df if isinstance(df, ro.vectors.DataFrame) else pd_to_R(df)
 
+    if not verbose:
+        rpy2_logger.setLevel(logging.ERROR)
+
     if method in ["edgerqlf", "edgerlrt"]:
         logging.info(f"\nCalling edgeR in R with kwargs:\n{kwargs}\n")
         edgeR = ro.globalenv['run_edgeR']  # Finding the R function in the script
@@ -65,7 +70,6 @@ def run_dea(df, outfile, method, overwrite, design="paired", lfc=0, **kwargs):
     else:
         raise Exception(f"Method {method} not implemented")
 
-
 def run_dea_on_full_data(datasets, DEAs, lfcs, design, overwrite=False, truncate_cohorts=0):
     """Run differential expression analysis on parent data with all cohorts f
         
@@ -81,8 +85,7 @@ def run_dea_on_full_data(datasets, DEAs, lfcs, design, overwrite=False, truncate
     for d in datasets:
         dpath = str(datasets[d]["datapath"])
         mfile = str(datasets[d]["metafile"])
-        if design == "custom": 
-            design_i = mfile
+        design_i = mfile if design == "custom" else design
         for lfc in lfcs:
             for dea in DEAs:
                 if dea == "wilcox" and design == "custom":

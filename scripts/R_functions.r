@@ -175,25 +175,25 @@ run_deseq2 <- function(x, outfile, design="paired", overwrite=FALSE, print_summa
         if (ncol(x)%%2 != 0) {stop("Paired-design matrix must have even number of columns")}
         N <- ncol(x)/2
         patients <- factor(c(seq(N),seq(N)))
-        condition <- factor(c(rep("N",N),rep("T",N))) # normal vs tumor (control vs treatment)
-        array = array(factor(c(patients,condition)),dim=c(length(patients),2))
+        Condition <- factor(c(rep("N",N),rep("T",N))) # normal vs tumor (control vs treatment)
+        array <- array(factor(c(patients,Condition)),dim=c(length(patients),2))
         coldata <- data.frame(array, row.names = colnames(x))
-        colnames(coldata) <- c("patient","condition")
+        colnames(coldata) <- c("patient","Condition")
         
         dds <- DESeqDataSetFromMatrix(countData = x,
                                   colData = coldata,
-                                  design = ~ patient + condition)
+                                  design = ~ patient + Condition)
     }
     else if (design == "unpaired") {
         if (ncol(x)%%2 != 0) {stop("Design matrix must have even number of columns")}
         N <- ncol(x)/2
-        condition <- factor(c(rep("N",N),rep("T",N))) # normal vs tumor (control vs treatment)
-        array = array(factor(condition),dim=c(length(condition)))
+        Condition <- factor(c(rep("N",N),rep("T",N))) # normal vs tumor (control vs treatment)
+        array <- array(factor(Condition),dim=c(length(Condition)))
         coldata <- data.frame(array, row.names = colnames(x))
-        colnames(coldata) <- c("condition")
+        colnames(coldata) <- c("Condition")
         dds <- DESeqDataSetFromMatrix(countData = x,
                                   colData = coldata,
-                                  design = ~ condition)
+                                  design = ~ Condition)
     }
     else {
 
@@ -216,7 +216,7 @@ run_deseq2 <- function(x, outfile, design="paired", overwrite=FALSE, print_summa
         } else if ("Sample" %in% names(covariate_df)) {
             rownames(covariate_df) <- covariate_df$Sample
         } else stop("Sample names not found in covariate df")
-        
+
         x <- x[, rownames(covariate_df)]  # Align count data with metadata
         # Create DESeqDataSet object
         dds <- DESeqDataSetFromMatrix(countData = x,

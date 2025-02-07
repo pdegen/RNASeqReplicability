@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+import numpy as np
 
 def npg_palette():
     palette = ["#E64B35FF", "#4DBBD5FF", "#00A087FF", "#3C5488FF", "#F39B7FFF",
@@ -52,3 +52,16 @@ def matplotlib_init():
     plt.rcParams.update(params)
     colors = sns.color_palette("deep")
     return colors
+
+def make_volcano(tab, lfc=0, FDR=0.05, title="", ylim=np.inf):
+    sig = tab[(tab["FDR"]<FDR)&(tab["logFC"].abs()>lfc)]
+    sns.scatterplot(x=tab["logFC"],y=-np.log10(tab["FDR"]), edgecolor=None, color="grey")
+    sns.scatterplot(x=sig["logFC"],y=-np.log10(sig["FDR"]), edgecolor=None)
+    plt.ylabel("-log10 FDR")
+    plt.axhline(-np.log10(FDR),ls="--",color="red")
+    if lfc > 0:
+        plt.axvline(lfc,ls="--",color="red")
+        plt.axvline(-lfc,ls="--",color="red")
+    if ylim < np.inf:
+        plt.ylim(-0.05*ylim, ylim)
+    plt.title(f"{title} DEGs: {len(sig)}")
