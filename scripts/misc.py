@@ -8,7 +8,22 @@ import pandas as pd
 import numpy as np
 import cProfile as profile
 
-
+from scipy.stats import entropy
+def get_kl_div(reference, subsample, bins=None):
+    if bins is None:
+        bins = np.linspace(-4,4,50)
+        print("Using default bins: np.linspace(-4,4,50)")
+    ref_hist, _ = np.histogram(reference, bins=bins, density=True)
+    sub_hist, _ = np.histogram(subsample, bins=bins, density=True)
+    
+    ref_hist += 1e-10
+    sub_hist += 1e-10
+    
+    ref_hist /= ref_hist.sum()
+    sub_hist /= sub_hist.sum()
+    
+    return entropy(sub_hist, ref_hist)
+    
 def open_table(file):
     """Returns table, agnostic whether file is csv or feather format"""
 
