@@ -481,6 +481,9 @@ def process_results(results, outpath, outname, all_N, DEAs, outlier_methods, FDR
                         truth = df_lfc.index.isin(truth_df.index)
                         mcc, prec, rec, mcc0, prec0 = get_array_metrics_numba(truth, boolarr_deg)
 
+                        if False:#dea == DEAs[0]:
+                            print(N, outname, fdr, logFC, "m" if suffix.endswith("_method") else "i", "met:", np.nanmedian(prec), len(method_truth_df), len(truth_df))
+
                         if return_metric_distribution:
                             print("Returning early after first iteration")
                             return mcc, prec, rec, mcc0, prec0, degs, rep
@@ -811,7 +814,7 @@ def get_init_samples_from_cohort(configfile):
 ###############################################################
 
 @Timer(name="decorator")
-def gsea_process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries,
+def gsea_process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, rankings,
                           FDRs, gsea_param_set, overwrite=False, overwrite_merged=False, n_cohorts="",
                           calculate_common=True):
     #### Create or load the results dict
@@ -828,7 +831,7 @@ def gsea_process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, gsea_m
             results = pickle.load(f)
 
     check_failed_jobs_due_to_time_and_move("../notebooks")
-    results = update_gsea_results_dict(results, all_N, DEAs, outlier_methods, gsea_methods, libraries, FDRs,
+    results = update_gsea_results_dict(results, all_N, DEAs, outlier_methods, gsea_methods, libraries, rankings, FDRs,
                                        overwrite=overwrite)
 
     # Process slurm files, check for failed jobs
@@ -843,14 +846,14 @@ def gsea_process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, gsea_m
     # Merge tables from different cohorts
     if overwrite_merged:
         logging.info("Merging tables...")
-        merge_gsea_tables(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, gsea_param_set,
+        merge_gsea_tables(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, rankings, gsea_param_set,
                           n_cohorts=n_cohorts)
-        merge_gsea_tables(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, gsea_param_set,
-                          n_cohorts=n_cohorts, mode="FDR.common")
+        # merge_gsea_tables(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, rankings, gsea_param_set,
+        #                   n_cohorts=n_cohorts, mode="FDR.common")
 
     # Calculate replicability, metrics
     logging.info("Processing results...")
-    results = process_gsea_results(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries,
+    results = process_gsea_results(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, rankings,
                                    FDRs, gsea_param_set, overwrite=overwrite)
 
     logging.info("\nFinish all N jobs before calculating adjusted results...")
@@ -877,7 +880,7 @@ def gsea_process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, gsea_m
     logging.info(f"Saved results in {resultsfile}")
 
 
-def update_gsea_results_dict(results, all_N, DEAs, outlier_methods, gsea_methods, libraries, FDRs,
+def update_gsea_results_dict(results, all_N, DEAs, outlier_methods, gsea_methods, libraries, rankings, FDRs,
                              overwrite=False) -> dict:
     """
     Add missing keys to results dict or create it from scratch
@@ -890,29 +893,13 @@ def update_gsea_results_dict(results, all_N, DEAs, outlier_methods, gsea_methods
              "median_mcc0": deepcopy(inner),
              "median_prec": deepcopy(inner),
              "median_prec0": deepcopy(inner),
-             "median_rec": deepcopy(inner),
-             "median_rep_adj": deepcopy(inner),
-             "median_terms_adj": deepcopy(inner),
-             "median_mcc_adj": deepcopy(inner),
-             "median_prec_adj": deepcopy(inner),
-             "median_rec_adj": deepcopy(inner),
-             "median_rep_common": deepcopy(inner),
-             "median_terms_common": deepcopy(inner),
-             "median_mcc_common": deepcopy(inner),
-             "median_mcc0_common": deepcopy(inner),
-             "median_prec_common": deepcopy(inner),
-             "median_prec0_common": deepcopy(inner),
-             "median_rec_common": deepcopy(inner),
-             "median_rep_adj_common": deepcopy(inner),
-             "median_terms_adj_common": deepcopy(inner),
-             "median_mcc_adj_common": deepcopy(inner),
-             "median_prec_adj_common": deepcopy(inner),
-             "median_rec_adj_common": deepcopy(inner)}
+             "median_rec": deepcopy(inner)
+            }
 
     if overwrite:
         logging.info("Creating gsea results dict from scratch")
         results = {N: {
-            out: {dea: {gsea: {library: deepcopy(outer) for library in libraries} for gsea in gsea_methods} for dea in
+            out: {dea: {gsea: {library: {ranking: deepcopy(outer) for ranking in rankings} for library in libraries} for gsea in gsea_methods} for dea in
                   DEAs} for out in outlier_methods} for N in all_N}
         results["n_patients_df"] = {out: None for out in outlier_methods if out != "none"}
 
@@ -949,6 +936,11 @@ def update_gsea_results_dict(results, all_N, DEAs, outlier_methods, gsea_methods
                             if library not in results[N][out][dea][gsea].keys():
                                 missing.append(library)
                                 results[N][out][dea][gsea][library] = deepcopy(outer)
+
+                            for ranking in rankings:
+                                if library not in results[N][out][dea][gsea][ranking].keys():
+                                    missing.append(library)
+                                    results[N][out][dea][gsea][library] = deepcopy(outer)
 
         if "n_patients_df" not in results:
             results["n_patients_df"] = {out: None for out in outlier_methods if out != "none"}
@@ -1073,7 +1065,7 @@ def calculate_common_fdr(outpath, outname, all_N, DEAs, outlier_methods, gsea_me
                             display(file)
 
 
-def merge_gsea_tables(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, gsea_param_set,
+def merge_gsea_tables(outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, rankings, gsea_param_set,
                       n_cohorts=0, mode="FDR") -> None:
     """
     Merge tables from different cohorts
@@ -1089,138 +1081,151 @@ def merge_gsea_tables(outpath, outname, all_N, DEAs, outlier_methods, gsea_metho
         for out in outlier_methods:
             for dea in DEAs:
                 for gsea in gsea_methods:
-                    if "s2n" in gsea and dea != "edgerqlf": continue
-                    for library in libraries:
-                        list_FDRs, cohort_ids = [], []
+                    for ranking in rankings:
+                        for library in libraries:
+                            list_FDRs, cohort_ids = [], []
+    
+                            for cohort in cohorts[:n_cohorts]:
+                                cohort_id = str(int(cohort.split("_")[-1]))
+                                cohort_ids.append(cohort_id)
+                                outpath_c = f"{outpath_N}/{cohort}/gsea"
+                                tab = open_table(f"{outpath_c}/{gsea}.{ranking}.{library}.{dea}.{out}.{gsea_param_set}")
+    
+                                ## for ORA KEGG: switch term ID and description for index
+                                if tab.index[0].startswith("hsa") and "Term" in tab:
+                                    tab = tab.set_index("Term")
+                                dupes = tab[mode].index.duplicated()
+                                if dupes.sum() > 0:
+                                    tab = tab[~dupes]
+                                    if dupes.sum() > 10:
+                                        logging.info(f"{dupes.sum()} duplicated terms found, dropping all")
+                                        
+                                list_FDRs.append(tab[mode])
 
-                        for cohort in cohorts[:n_cohorts]:
-                            cohort_id = str(int(cohort.split("_")[-1]))
-                            cohort_ids.append(cohort_id)
-                            outpath_c = f"{outpath_N}/{cohort}/gsea"
-                            tab = open_table(f"{outpath_c}/{gsea}.{library}.{dea}.{out}.{gsea_param_set}")
-
-                            ## for ORA KEGG: switch term ID and description for index
-                            if tab.index[0].startswith("hsa") and "Term" in tab:
-                                tab = tab.set_index("Term")
-
-                            list_FDRs.append(tab[mode])
-
-                        FDR_concat = pd.concat(list_FDRs, axis=1, keys=cohort_ids).reset_index(drop=False)
-                        FDR_concat.to_feather(
-                            f"{outpath_N}/all.{mode}.{gsea}.{library}.{out}.{dea}.{gsea_param_set}.feather")
+                            FDR_concat = pd.concat(list_FDRs, axis=1, keys=cohort_ids).reset_index(drop=False)
+                            FDR_concat.to_feather(
+                                f"{outpath_N}/all.{mode}.{gsea}.{ranking}.{library}.{out}.{dea}.{gsea_param_set}.feather")
 
 
-def process_gsea_results(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, FDRs,
+def process_gsea_results(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, rankings, FDRs,
                          gsea_param_set, overwrite=False) -> dict:
     """
     Calcualte median replicability, #DEG, MCC, precision, recall for one dataset
     """
-    modes = ["FDR", "FDR.common"]
-    truth_dict = {gsea: {
-        library: {mode: {fdr: open_table(f"{outpath}/gsea/{gsea}.{library}.feather")[mode] for fdr in FDRs} for mode in
-                  modes} for library in libraries} for gsea in gsea_methods}
-    file_gobp = Path("../data/multi/common_gobp.txt")
-    file_kegg = Path("../data/multi/common_kegg.txt")
-    with open(file_gobp, "rb") as f:
-        common_gobp = pickle.load(f)
-    with open(file_kegg, "rb") as f:
-        common_kegg = pickle.load(f)
+    modes = ["FDR"]#, "FDR.common"]
 
-    for N in all_N:
-        print(f"N{N} ", end=" ")
-        outpath_N = f"{outpath}/{outname}_N{N}"
-
-        for out in outlier_methods:
-            for dea in DEAs:
+    for dea in DEAs:
+    
+        truth_dict = {gsea: {
+            library: {ranking: {mode: {fdr: open_table(f"{outpath}/gsea/{gsea}.{ranking}.{library}.{dea}.feather")[mode] for fdr in FDRs} for mode in
+                      modes} for ranking in rankings} for library in libraries} for gsea in gsea_methods}
+        file_gobp = Path("../data/multi/common_gobp.txt")
+        file_kegg = Path("../data/multi/common_kegg.txt")
+        with open(file_gobp, "rb") as f:
+            common_gobp = pickle.load(f)
+        with open(file_kegg, "rb") as f:
+            common_kegg = pickle.load(f)
+    
+        for N in all_N:
+            print(f"N{N} ", end=" ")
+            outpath_N = f"{outpath}/{outname}_N{N}"
+    
+            for out in outlier_methods:
                 for gsea in gsea_methods:
-                    if "s2n" in gsea and dea != "edgerqlf": continue
+                    for ranking in rankings:
+    
+                        for library in libraries:
+                            if library == "GO_Biological_Process_2021":
+                                len_truth = len(common_gobp)
+                            elif library == "KEGG_2021_Human":
+                                len_truth = len(common_kegg)
+                            else:
+                                raise Exception(f"Invalid library: {library}")
+    
+                            for mode in modes:
+                                mode_suffix = "" if mode == "FDR" else "_common"
+    
+                                # Check which results already exist
+                                to_process = FDRs
+                                for fdr in FDRs:
+                                    if (not overwrite and
+                                            (results[N][out][dea][gsea][library][ranking]["median_rep" + mode_suffix][
+                                                 fdr] is not None) and
+                                            (results[N][out][dea][gsea][library][ranking]["median_terms" + mode_suffix][
+                                                 fdr] is not None)):
+                                        to_process.remove(fdr)
+    
+                                if len(to_process) < 1: continue
+    
+                                df_fdr = open_table(
+                                    f"{outpath_N}/all.{mode}.{gsea}.{ranking}.{library}.{out}.{dea}.{gsea_param_set}.feather")
+    
+                                for fdr in to_process:
+    
+                                    truth_df = truth_dict[gsea][library][ranking][mode][fdr]
+    
+                                    if mode == "FDR.common" and library == "GO_Biological_Process_2021":
+                                        common = common_gobp
+                                    elif mode == "FDR.common" and library == "KEGG_2021_Human":
+                                        common = common_kegg
+                                    elif mode != "FDR.common":
+                                        common = truth_df.index
+    
+                                    truth_df = truth_df.loc[common]
+    
+                                    # if terms missing in df, append with FDR = 1
+                                    if mode == "FDR.common":
+                                        ix = truth_df.index.difference(df_fdr.index)
+                                        if len(ix) > 0:
+                                            df_fdr = pd.concat([df_fdr,
+                                                                pd.DataFrame(np.ones(shape=(len(ix), len(df_fdr.columns))),
+                                                                             index=ix, columns=df_fdr.columns)])
+    
+                                    df_fdr = df_fdr.loc[common.intersection(df_fdr.index)]
 
-                    for library in libraries:
-                        if library == "GO_Biological_Process_2021":
-                            len_truth = len(common_gobp)
-                        elif library == "KEGG_2021_Human":
-                            len_truth = len(common_kegg)
-                        else:
-                            raise Exception(f"Invalid library: {library}")
-
-                        for mode in modes:
-                            mode_suffix = "" if mode == "FDR" else "_common"
-
-                            # Check which results already exist
-                            to_process = FDRs
-                            for fdr in FDRs:
-                                if (not overwrite and
-                                        (results[N][out][dea][gsea][library]["median_rep" + mode_suffix][
-                                             fdr] is not None) and
-                                        (results[N][out][dea][gsea][library]["median_terms" + mode_suffix][
-                                             fdr] is not None)):
-                                    to_process.remove(fdr)
-
-                            if len(to_process) < 1: continue
-
-                            df_fdr = open_table(
-                                f"{outpath_N}/all.{mode}.{gsea}.{library}.{out}.{dea}.{gsea_param_set}.feather")
-
-                            for fdr in to_process:
-
-                                truth_df = truth_dict[gsea][library][mode][fdr]
-
-                                if mode == "FDR.common" and library == "GO_Biological_Process_2021":
-                                    common = common_gobp
-                                elif mode == "FDR.common" and library == "KEGG_2021_Human":
-                                    common = common_kegg
-                                elif mode != "FDR.common":
-                                    common = truth_df.index
-
-                                truth_df = truth_df.loc[common]
-
-                                # if terms missing in df, append with FDR = 1
-                                if mode == "FDR.common":
-                                    ix = truth_df.index.difference(df_fdr.index)
-                                    if len(ix) > 0:
-                                        df_fdr = pd.concat([df_fdr,
-                                                            pd.DataFrame(np.ones(shape=(len(ix), len(df_fdr.columns))),
-                                                                         index=ix, columns=df_fdr.columns)])
-
-                                df_fdr = df_fdr.loc[common.intersection(df_fdr.index)]
-                                truth_df = truth_df.loc[df_fdr.index]
-
-                                boolarr = np.where(df_fdr < fdr, True, False)
-
-                                results[N][out][dea][gsea][library]["median_terms" + mode_suffix][fdr] = np.median(
-                                    np.sum(boolarr, axis=0))
-                                results[N][out][dea][gsea][library]["median_rep" + mode_suffix][fdr] = np.median(
-                                    get_replicability_numba(boolarr))
-
-                                truth = (truth_df < fdr).values
-
-                                # if (results[N][out][dea][gsea][library]["median_rep"+mode_suffix][fdr] == 0):
-                                #     display(truth_df)
-                                #     display(common)
-                                #     display(truth.shape)
-                                #     display(boolarr.shape)
-                                #     display(truth.sum())
-                                #     display(boolarr.sum(axis=1))
-                                #     display(df_fdr)
-                                #     print(N,dea,gsea,out,library,mode,fdr)
-                                #     assert 0
-
-                                try:
-                                    mcc, prec, rec, mcc0, prec0 = get_array_metrics_numba(truth, boolarr)
-                                except ValueError:
-                                    display(truth.shape)
-                                    display(boolarr.shape)
-                                    display(truth_df)
-                                    print(mode, library, gsea)
-                                    assert 0
-                                results[N][out][dea][gsea][library]["median_mcc" + mode_suffix][fdr] = np.nanmedian(mcc)
-                                results[N][out][dea][gsea][library]["median_mcc0" + mode_suffix][fdr] = np.nanmedian(mcc0)
-                                results[N][out][dea][gsea][library]["median_prec" + mode_suffix][fdr] = np.nanmedian(prec)
-                                results[N][out][dea][gsea][library]["median_prec0" + mode_suffix][fdr] = np.nanmedian(prec0)
-                                results[N][out][dea][gsea][library]["median_rec" + mode_suffix][fdr] = np.nanmedian(rec)
+                                    truth_df = truth_df[~truth_df.index.duplicated()]
+                                    df_fdr = df_fdr[~df_fdr.index.duplicated()]
+                                    common = df_fdr.index.intersection(truth_df.index)
+                                    truth_df = truth_df.loc[common]
+                                    df_fdr = df_fdr.loc[common]
+    
+                                    boolarr = np.where(df_fdr < fdr, True, False)
+    
+                                    results[N][out][dea][gsea][library][ranking]["median_terms" + mode_suffix][fdr] = np.median(
+                                        np.sum(boolarr, axis=0))
+                                    results[N][out][dea][gsea][library][ranking]["median_rep" + mode_suffix][fdr] = np.median(
+                                        get_replicability_numba(boolarr))
+    
+                                    truth = (truth_df < fdr).values
+    
+                                    # if (results[N][out][dea][gsea][library]["median_rep"+mode_suffix][fdr] == 0):
+                                    #     display(truth_df)
+                                    #     display(common)
+                                    #     display(truth.shape)
+                                    #     display(boolarr.shape)
+                                    #     display(truth.sum())
+                                    #     display(boolarr.sum(axis=1))
+                                    #     display(df_fdr)
+                                    #     print(N,dea,gsea,out,library,mode,fdr)
+                                    #     assert 0
+    
+                                    try:
+                                        mcc, prec, rec, mcc0, prec0 = get_array_metrics_numba(truth, boolarr)
+                                    except ValueError as e:
+                                        display(truth.shape)
+                                        display(boolarr.shape)
+                                        display(truth_df)
+                                        print(mode, library, gsea)
+                                        print(e)
+                                        assert 0
+                                    results[N][out][dea][gsea][library][ranking]["median_mcc" + mode_suffix][fdr] = np.nanmedian(mcc)
+                                    results[N][out][dea][gsea][library][ranking]["median_mcc0" + mode_suffix][fdr] = np.nanmedian(mcc0)
+                                    results[N][out][dea][gsea][library][ranking]["median_prec" + mode_suffix][fdr] = np.nanmedian(prec)
+                                    results[N][out][dea][gsea][library][ranking]["median_prec0" + mode_suffix][fdr] = np.nanmedian(prec0)
+                                    results[N][out][dea][gsea][library][ranking]["median_rec" + mode_suffix][fdr] = np.nanmedian(rec)
     return results
 
-
+# deprecated
 def get_n_gsea_truth(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, FDRs,
                      gsea_param_set, overwrite=False) -> dict:
     """

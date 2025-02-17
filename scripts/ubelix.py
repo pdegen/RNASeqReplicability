@@ -54,7 +54,7 @@ def adjust_gsea_job_time(N, libraries, gsea_method, gsea_script_path, just_testi
     time_str = "#SBATCH --time="
 
     if gsea_method.startswith("gseapy"):
-        max_time = 6
+        max_time = 3
     elif gsea_method.startswith("clusterORA"):
         max_time = 4 + N // 7
     else:
@@ -223,6 +223,7 @@ def run_gsea_batch(config_params, all_N, n_cohorts, libraries, gsea_script_path,
     outpath_original = config_params["outpath"]
     dea_param_set = config_params["dea_param_set"]
     gsea_param_set = config_params['gsea_param_set']
+    rankings = config_params['rankings']
     total_jobs = 0
     overwrite = config_params["overwrite"]
 
@@ -237,101 +238,93 @@ def run_gsea_batch(config_params, all_N, n_cohorts, libraries, gsea_script_path,
 
                 for gsea_method in config_params["gsea_methods"]:
 
-                    job_ids = []
-
-                    # Check if gsea results table already exists, if not: append cohort to job_ids
-                    for cohort in range(1, n_cohorts + 1):
-
-                        outname_c = outname_N + f"_{int(cohort):04}"
-                        outpath_c = Path(outpath_N + "/" + outname_c)
-                        tabfile_c = f"{outpath_c}/tab.{out}.{DEA}.{dea_param_set}"
-                        config_params_c = config_params.copy()
-                        config_params_c["replicates"] = N
-                        config_params_c["outpath"] = str(outpath_c)
-                        config_params_c["outname"] = outname_c
-
-                        # Check if the DEA results table exists
-                        if Path(f"{tabfile_c}.csv").is_file() or Path(f"{tabfile_c}.feather").is_file():
-
-                            gseapath = Path(f"{outpath_c}/gsea")
-
-                            if gseapath.exists():
-
-                                for library in libraries:
-
-                                    ## annoying workaround
-                                    if "clusterORA" in gsea_method:
+                    for ranking in rankings:
+                    
+    
+                        job_ids = []
+    
+                        # Check if gsea results table already exists, if not: append cohort to job_ids
+                        for cohort in range(1, n_cohorts + 1):
+    
+                            outname_c = outname_N + f"_{int(cohort):04}"
+                            outpath_c = Path(outpath_N + "/" + outname_c)
+                            tabfile_c = f"{outpath_c}/tab.{out}.{DEA}.{dea_param_set}"
+                            config_params_c = config_params.copy()
+                            config_params_c["replicates"] = N
+                            config_params_c["outpath"] = str(outpath_c)
+                            config_params_c["outname"] = outname_c
+    
+                            # Check if the DEA results table exists
+                            if Path(f"{tabfile_c}.csv").is_file() or Path(f"{tabfile_c}.feather").is_file():
+    
+                                gseapath = Path(f"{outpath_c}/gsea")
+    
+                                if gseapath.exists():
+    
+                                    for library in libraries:
+    
                                         g = glob.glob(
-                                            f"{outpath_c}/gsea/{gsea_method}*.{library}.{DEA}.{out}.{gsea_param_set}.feather")
-                                    else:
-                                        g = glob.glob(
-                                            f"{outpath_c}/gsea/{gsea_method}.{library}.{DEA}.{out}.{gsea_param_set}.feather")
-
-                                    if len(g) >= 1 and gsea_method in ["gseapy", "gseapy_s2n"]:
-                                        gsea_results_exist = True
-                                    elif len(g) >= 1 and gsea_method in ["clusterORA", "clusterORA_lfc"]:
-                                        gsea_results_exist = True
-                                    else:
-                                        gsea_results_exist = False
-
-                                    if (not gsea_results_exist) or overwrite:
-                                        # Update the config file
-                                        with open(f"{outpath_c}/gsea/config.json", "r+") as f:
-                                            configdict = json.load(f)
-                                            configdict["config_params"][gsea_param_set] = config_params_c
-                                            f.seek(0)
-                                            json.dump(configdict, f)
-                                            f.truncate()
-                                        job_ids.append(str(cohort))
-                                        break
-
+                                                f"{outpath_c}/gsea/{gsea_method}.{ranking}.{library}.{DEA}.{out}.{gsea_param_set}.feather")
+                                        gsea_results_exist = len(g) >= 1
+    
+                                        if (not gsea_results_exist) or overwrite:
+                                            # Update the config file
+                                            with open(f"{outpath_c}/gsea/config.json", "r+") as f:
+                                                configdict = json.load(f)
+                                                configdict["config_params"][gsea_param_set] = config_params_c
+                                                f.seek(0)
+                                                json.dump(configdict, f)
+                                                f.truncate()
+                                            job_ids.append(str(cohort))
+                                            break
+    
+                                else:
+                                    os.system(f"mkdir -p {outpath_c}/gsea")
+                                    job_ids.append(str(cohort))
+                                    # Create the config file
+                                    with open(f"{outpath_c}/gsea/config.json", "w") as f:
+                                        configdict = {
+                                            "Cohort": cohort,
+                                            "config_params": {gsea_param_set: config_params_c}
+                                        }
+                                        configjson = json.dumps(configdict)
+                                        f.write(configjson)
+    
+    
                             else:
-                                os.system(f"mkdir -p {outpath_c}/gsea")
-                                job_ids.append(str(cohort))
-                                # Create the config file
-                                with open(f"{outpath_c}/gsea/config.json", "w") as f:
-                                    configdict = {
-                                        "Cohort": cohort,
-                                        "config_params": {gsea_param_set: config_params_c}
-                                    }
-                                    configjson = json.dumps(configdict)
-                                    f.write(configjson)
-
-
-                        else:
-                            logging.info(f"DEA table {tabfile_c} doesn't exist, no jobs sent")
-
-                    # Send the jobs
-                    max_time = adjust_gsea_job_time(N=N, libraries=libraries, gsea_method=gsea_method,
-                                                    gsea_script_path=gsea_script_path)
-                    logging.info(
-                        f"\n{'Sending' if mode != 'just testing' else 'Testing'} {len(job_ids)} jobs for N={N}, DEA={DEA}, out={out}, GSEA={gsea_method}, max time: {max_time} min")
-                    total_jobs += len(job_ids)
-                    if len(job_ids) > 0:
-
-                        if mode in ["send jobs", "just testing"]:
-                            command = f"sbatch --array={','.join(job_ids)} {gsea_script_path} {outpath_N} {outname_N} {DEA} {out} {gsea_method} {gsea_param_set}"
-                            logging.info(command)
-
-                            if mode == "send jobs":
-                                os.system(command)
-                                if sleep_seconds > 0:
-                                    logging.info(f"Sleeping {sleep_seconds} seconds...")
-                                    time.sleep(sleep_seconds)
-                            elif mode == "just testing":
-                                logging.info("Just testing...")
-
-                        elif mode in ["test main", "test main terminal"]:
-                            from enrichment import main_enrich
-                            for cohort in job_ids:
-                                outname_c = outname_N + f"_{int(cohort):04}"
-                                outpath_c = Path(outpath_N + "/" + outname_c)
-                                config_params_file = f"{outpath_c}/gsea/config.json"
-                                if mode == "test main":
-                                    main_enrich(config_params_file, DEA, out, gsea_method, gsea_param_set, conv_file="")
-                                elif mode == "test main terminal":
-                                    command = f"python3 ../scripts/enrichment.py --config {config_params_file} --DEA_method {DEA} --outlier_method {out} --gsea_method {gsea_method} --param_set {gsea_param_set}"
-                                    logging.info(command)
+                                logging.info(f"DEA table {tabfile_c} doesn't exist, no jobs sent")
+    
+                        # Send the jobs
+                        max_time = adjust_gsea_job_time(N=N, libraries=libraries, gsea_method=gsea_method,
+                                                        gsea_script_path=gsea_script_path)
+                        logging.info(
+                            f"\n{'Sending' if mode != 'just testing' else 'Testing'} {len(job_ids)} jobs for N={N}, DEA={DEA}, out={out}, GSEA={gsea_method}, max time: {max_time} min")
+                        total_jobs += len(job_ids)
+                        if len(job_ids) > 0:
+    
+                            if mode in ["send jobs", "just testing"]:
+                                command = f"sbatch --array={','.join(job_ids)} {gsea_script_path} {outpath_N} {outname_N} {DEA} {out} {gsea_method} {gsea_param_set}"
+                                logging.info(command)
+    
+                                if mode == "send jobs":
                                     os.system(command)
+                                    if sleep_seconds > 0:
+                                        logging.info(f"Sleeping {sleep_seconds} seconds...")
+                                        time.sleep(sleep_seconds)
+                                elif mode == "just testing":
+                                    logging.info("Just testing...")
+    
+                            elif mode in ["test main", "test main terminal"]:
+                                from enrichment import main_enrich
+                                for cohort in job_ids:
+                                    outname_c = outname_N + f"_{int(cohort):04}"
+                                    outpath_c = Path(outpath_N + "/" + outname_c)
+                                    config_params_file = f"{outpath_c}/gsea/config.json"
+                                    if mode == "test main":
+                                        main_enrich(config_params_file, DEA, out, gsea_method, gsea_param_set, conv_file="")
+                                    elif mode == "test main terminal":
+                                        command = f"python3 ../scripts/enrichment.py --config {config_params_file} --DEA_method {DEA} --outlier_method {out} --gsea_method {gsea_method} --param_set {gsea_param_set}"
+                                        logging.info(command)
+                                        os.system(command)
 
     logging.info(f"Total jobs: {total_jobs}")

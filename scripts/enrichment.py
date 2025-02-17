@@ -148,26 +148,28 @@ def run_gseapy(prepared_tab, library, outpath, threads=4, permutation_num=100, f
                              outdir=outpath, seed=6, no_plot=True, min_size=min_size, max_size=max_size)
 
     terms = pd.read_csv(f"{outpath}/gseapy.gene_set.prerank.report.csv")
-    terms.loc[:, 'Term ID'] = terms["Term"].str.split(" \(", 1, expand=True)[1].str[:-1]
-    terms.loc[:, 'Term'] = terms["Term"].str.split(" \(", 1, expand=True)[0]
+    terms.loc[:, 'Term ID'] = terms["Term"].str.split(" \(", expand=True)[1].str[:-1]
+    terms.loc[:, 'Term'] = terms["Term"].str.split(" \(", expand=True)[0]
     terms = terms[["Name", "Term", "Term ID", "ES", "NES", "NOM p-val", "FDR q-val", "FWER p-val", "Tag %", "Gene %",
                    "Lead_genes"]]
     terms = terms.rename(columns={"FDR q-val": "FDR"})
     if library.startswith("KEGG"):
         terms.drop("Term ID", axis=1, inplace=True)
-    rnk = "_s2n" if ranking == "|S2N|" else ""
-    terms.to_feather(
-        f"{outpath}/gseapy{rnk}.{library}{file_id}.feather" if file_id != "" else f"{outpath}/gseapy{rnk}.{library}.feather")
-    os.system(f"rm {outpath}/gseapy.gene_set.prerank.report.csv")
 
+    fname = f"gseapy.{ranking}.{library}.{file_id}.feather" if file_id != "" else f"{outpath}/gseapy.{ranking}.{library}.feather"
+    terms.to_feather(
+        f"{outpath}/{fname}")
+    os.system(f"rm {outpath}/gseapy.gene_set.prerank.report.csv")
+    print(f"Significant (5% FDR): {len(terms[terms['FDR']<0.05])} out of {len(terms)}")
+    
     return pre_res
 
 
 def run_gseapy_libraries(prepared_tab, gseapath, libraries, overwrite_all_gsea, file_id="", permutation_num=100,
                          save_full_results=False, threads=4, ranking="logFC", min_size=15, max_size=500):
-    rnk = "_s2n" if ranking == "|S2N|" else ""
+    
     for library in libraries:
-        gsea_out = f"{gseapath}/gseapy{rnk}.{library}{file_id}.feather" if file_id != "" else f"{gseapath}/gseapy{rnk}.{library}.feather"
+        gsea_out = f"{gseapath}/gseapy.{ranking}.{library}.{file_id}.feather" if file_id != "" else f"{outpath}/gseapy.{ranking}.{library}.feather"
         if not Path(gsea_out).is_file() or overwrite_all_gsea:
             logging.info(library)
             gsea_results = run_gseapy(prepared_tab, library, gseapath, permutation_num=permutation_num,
@@ -249,49 +251,61 @@ def main_enrich(config, DEA_method, outlier_method, gsea_method, gsea_param_set,
         overwrite = config_params["overwrite"]
         dea_param_set = config_params["dea_param_set"]
         dea_param_set_lfc = config_params["dea_param_set_lfc"]
+        rankings = config_params["rankings"]
 
-    # Load gene conversion table
-    if conv_file == "": conv_file = "../data/multi/conv_table.csv"
-    logging.info(f"Loading conversion table; timedelta = {datetime.now() - starttime}")
-    conv_table = pd.read_csv(conv_file, index_col=0)
+    for ranking in rankings:
 
-    # Load DEA results table
-    logging.info(f"Loading DEA table; timedelta = {datetime.now() - starttime}")
-    if gsea_method == "clusterORA_lfc":
-        tab = open_table(f"{outpath}/tab.{outlier_method}.{DEA_method}.{dea_param_set_lfc}")
-    else:
-        tab = open_table(f"{outpath}/tab.{outlier_method}.{DEA_method}.{dea_param_set}")
-
-    # Calculate |S2N|
-    if config_params["gsea_kwargs"][gsea_method]["ranking"] == "|S2N|":
-        samples_i = get_init_samples_from_cohort(config.replace("/gsea", ""))
-        counts = pd.read_csv(config_params["data"], usecols=["Unnamed: 0"] + samples_i, index_col=0)
-        counts = normalize_counts(counts)
-        tab.loc[counts.index, "|S2N|"] = signal_to_noise(counts)
-    tab_cleaned = tab.loc[tab.index.intersection(conv_table.index)]
-    tab_cleaned["Symbol"] = conv_table.loc[tab_cleaned.index, "Symbol"]
-    logging.info(f"Original tab: {len(tab)} genes\nCleaned tab: {len(tab_cleaned)} genes\n")
-
-    # Convert ENSG to Entrez
-    if gsea_method.startswith("clusterORA"):
-        logging.info(f"Converting to Entrez; timedelta = {datetime.now() - starttime}")
-        tab_cleaned = convert_ensg(tab_cleaned, conv_table, target="Entrez")
-
-    #### GSEA
-
-    # create temporary folder to store intermediate results (avoid conflict with parallel GSEA jobs)
-    gseapath = f"{outpath}/gsea"
-    tmppath = f"{gseapath}/tmp_{str(time.time()).replace('.', '')}"
-    os.system(f"mkdir {tmppath}")
-    file_id = f".{DEA_method}.{outlier_method}.{gsea_param_set}"
-    logging.info(f"Starting GSEA; timedelta = {datetime.now() - starttime}")
-    run_gsea(tab_cleaned, tmppath, libraries, gsea_method, overwrite=overwrite, file_id=file_id, **gsea_kwargs)
-    logging.info(f"Finished GSEA, moving files; timedelta = {datetime.now() - starttime}")
-    os.system(f"ls {tmppath}")
-    os.system(f"mv {tmppath}/* {tmppath}/..")
-    os.system(f"rm -r {tmppath}")
-    finishtime = datetime.now()
-    logging.info(f"Done at {finishtime}; timedelta = {finishtime - starttime}")
+        config_params["gsea_kwargs"][gsea_method]["ranking"] = ranking
+        
+        # Load gene conversion table
+        if conv_file == "": conv_file = "../data/multi/conv_table.csv"
+        logging.info(f"Start enrichment with {ranking} ranking; timedelta = {datetime.now() - starttime}")
+        conv_table = pd.read_csv(conv_file, index_col=0)
+    
+        # Load DEA results table
+        logging.info(f"Loading DEA table; timedelta = {datetime.now() - starttime}")
+        if gsea_method == "clusterORA_lfc":
+            tab = open_table(f"{outpath}/tab.{outlier_method}.{DEA_method}.{dea_param_set_lfc}")
+        else:
+            tab = open_table(f"{outpath}/tab.{outlier_method}.{DEA_method}.{dea_param_set}")
+    
+        # Calculate |S2N|
+        if config_params["gsea_kwargs"][gsea_method]["ranking"] == "|S2N|":
+            samples_i = get_init_samples_from_cohort(config.replace("/gsea", ""))
+            counts = pd.read_csv(config_params["data"], usecols=["Unnamed: 0"] + samples_i, index_col=0)
+            counts = normalize_counts(counts)
+            tab.loc[counts.index, "|S2N|"] = signal_to_noise(counts)
+    
+        if tab.index[0].startswith("ENSG"):
+            tab_cleaned = tab.loc[tab.index.intersection(conv_table.index)]
+            tab_cleaned["Symbol"] = conv_table.loc[tab_cleaned.index,"Symbol"]
+        else: # assume symbol
+            tab_cleaned = tab.loc[tab.index.intersection(conv_table.set_index("Symbol").index)]
+            tab_cleaned["Symbol"] = conv_table.set_index("Symbol").loc[tab_cleaned.index].index
+    
+        logging.info(f"Original tab: {len(tab)} genes\nCleaned tab: {len(tab_cleaned)} genes\n")
+    
+        # Convert ENSG to Entrez
+        if gsea_method.startswith("clusterORA"):
+            logging.info(f"Converting to Entrez; timedelta = {datetime.now() - starttime}")
+            tab_cleaned = convert_ensg(tab_cleaned, conv_table, target="Entrez")
+    
+        #### GSEA
+    
+        # create temporary folder to store intermediate results (avoid conflict with parallel GSEA jobs)
+        gseapath = f"{outpath}/gsea"
+        tmppath = f"{gseapath}/tmp_{str(time.time()).replace('.', '')}"
+        os.system(f"mkdir {tmppath}")
+        file_id = f"{DEA_method}.{outlier_method}.{gsea_param_set}"
+        logging.info(f"Starting GSEA; timedelta = {datetime.now() - starttime}")
+        run_gsea(tab_cleaned, tmppath, libraries, gsea_method, overwrite=overwrite, file_id=file_id, **gsea_kwargs)
+        logging.info(f"Finished GSEA, moving files; timedelta = {datetime.now() - starttime}")
+        print("tmp", tmppath)
+        os.system(f"ls {tmppath}")
+        os.system(f"mv {tmppath}/*.feather {tmppath}/..")
+        os.system(f"rm -r {tmppath}")
+        finishtime = datetime.now()
+        logging.info(f"Done at {finishtime}; timedelta = {finishtime - starttime}")
 
 
 if __name__ == "__main__":

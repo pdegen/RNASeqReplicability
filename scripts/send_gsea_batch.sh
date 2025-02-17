@@ -1,9 +1,12 @@
 #!/bin/bash
-#SBATCH --time=00:06:00    # Each task takes max 06 minutes
-#SBATCH --mem-per-cpu=4608MB   # Each task uses max 4G of memory
+#SBATCH --time=00:03:00    # Each task takes max 03 minutes
+#SBATCH --mem-per-cpu=4G  # Each task uses max 4G of memory
 
 date
 echo "Starting job with 04 minutes to go"
+
+source ../../welcome.sh
+conda activate rna-rep
 
 n=$(printf "%04d" $SLURM_ARRAY_TASK_ID)
 j=$SLURM_ARRAY_JOB_ID
