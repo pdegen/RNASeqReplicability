@@ -8,6 +8,12 @@ Code and data for Degen &amp; Medo (2025).
 
 To be expanded... This repo still needs some cleaning up
 
+### Bootstrapping
+
+We have a separate repository for reseacrhers who wish to perform our suggested bootstrapping procedure on their own data: 
+
+[https://github.com/pdegen/BootstrapSeq](https://github.com/pdegen/BootstrapSeq)
+
 ### Reproducing figures
 
 Aggregated, processed data to reproduce the figures can be found in [data/multi](./data/multi). Most of the figures are created using [notebooks/figures_revised.ipynb](notebooks/figures_revised.ipynb).
