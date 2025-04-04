@@ -641,14 +641,14 @@ def process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, FDRs, logFC
     #### Process
 
     # Read outliers from slurm file
-    logging.info("Processing slurm files...")
+    #logging.info("Processing slurm files...")
     check_failed_jobs_due_to_time_and_move("../notebooks")
-    results = process_slurm(results, outpath, outname, all_N, DEAs, outlier_methods, param_set, n_cohorts)
+    #results = process_slurm(results, outpath, outname, all_N, DEAs, outlier_methods, param_set, n_cohorts)
 
     # Construct n_patients_df
-    for out in outlier_methods:
-        if out == "none": continue
-        results["n_patients_df"][out] = get_n_patients_df(results, all_N, outpath, out)
+    # for out in outlier_methods:
+    #     if out == "none": continue
+    #     results["n_patients_df"][out] = get_n_patients_df(results, all_N, outpath, out)
 
     # Merge tables from different cohorts
     logging.info("Merging tables...")
@@ -770,7 +770,7 @@ def find_ground_truth(datasets, DEAs, FDRs, logFCs, lfc_tests, overwrite=False, 
                     sets = []
                     for dea in DEAs:
                         
-                        if dea == "wilcox" and lfc_test != 0:
+                        if (dea == "wilcox" and lfc_test != 0) or (dea in ["deseq2_ashr","deseq2_apeglm"] and lfc_test!=0):
                             continue
 
                         sets.append(set(dea_dict[dea][fdr][logFC]["DEGs"].index))
@@ -835,7 +835,7 @@ def gsea_process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, gsea_m
                                        overwrite=overwrite)
 
     # Process slurm files, check for failed jobs
-    logging.info("Processing slurm files...")
+    #logging.info("Processing slurm files...")
     # process_gsea_slurm(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, n_cohorts=n_cohorts)
 
     if calculate_common:
@@ -872,7 +872,8 @@ def gsea_process_pipeline(outpath, outname, all_N, DEAs, outlier_methods, gsea_m
     #     results = calc_gsea_rep_same_cohort_size(results, outpath, outname, all_N, DEAs, outlier_methods, gsea_methods, libraries, FDRs, gsea_param_set)
 
     # Delete redundant slurm files, tmp folders
-    delete_redundant_slurmfiles(outpath, outname, all_N, gsea=True)
+    logging.info("Not deleting redundant slurm files")
+    #delete_redundant_slurmfiles(outpath, outname, all_N, gsea=True)
 
     #### Save results
 
@@ -1087,10 +1088,13 @@ def merge_gsea_tables(outpath, outname, all_N, DEAs, outlier_methods, gsea_metho
     
                             for cohort in cohorts[:n_cohorts]:
                                 cohort_id = str(int(cohort.split("_")[-1]))
-                                cohort_ids.append(cohort_id)
                                 outpath_c = f"{outpath_N}/{cohort}/gsea"
-                                tab = open_table(f"{outpath_c}/{gsea}.{ranking}.{library}.{dea}.{out}.{gsea_param_set}")
-    
+                                try:
+                                    tab = open_table(f"{outpath_c}/{gsea}.{ranking}.{library}.{dea}.{out}.{gsea_param_set}")
+                                except FileNotFoundError:
+                                    continue
+                                cohort_ids.append(cohort_id)
+                                
                                 ## for ORA KEGG: switch term ID and description for index
                                 if tab.index[0].startswith("hsa") and "Term" in tab:
                                     tab = tab.set_index("Term")
@@ -1102,6 +1106,10 @@ def merge_gsea_tables(outpath, outname, all_N, DEAs, outlier_methods, gsea_metho
                                         
                                 list_FDRs.append(tab[mode])
 
+                            print(f"{len(cohort_ids)}/{len(cohorts)} cohorts found for merging with {N} {out} {dea} {gsea_param_set}")
+                            if len(cohort_ids) < 1:
+                                continue
+                                
                             FDR_concat = pd.concat(list_FDRs, axis=1, keys=cohort_ids).reset_index(drop=False)
                             FDR_concat.to_feather(
                                 f"{outpath_N}/all.{mode}.{gsea}.{ranking}.{library}.{out}.{dea}.{gsea_param_set}.feather")
@@ -1118,7 +1126,7 @@ def process_gsea_results(results, outpath, outname, all_N, DEAs, outlier_methods
     
         truth_dict = {gsea: {
             library: {ranking: {mode: {fdr: open_table(f"{outpath}/gsea/{gsea}.{ranking}.{library}.{dea}.feather")[mode] for fdr in FDRs} for mode in
-                      modes} for ranking in rankings} for library in libraries} for gsea in gsea_methods}
+                      modes} for ranking in rankings } for library in libraries} for gsea in gsea_methods}
         file_gobp = Path("../data/multi/common_gobp.txt")
         file_kegg = Path("../data/multi/common_kegg.txt")
         with open(file_gobp, "rb") as f:
@@ -1133,14 +1141,7 @@ def process_gsea_results(results, outpath, outname, all_N, DEAs, outlier_methods
             for out in outlier_methods:
                 for gsea in gsea_methods:
                     for ranking in rankings:
-    
                         for library in libraries:
-                            if library == "GO_Biological_Process_2021":
-                                len_truth = len(common_gobp)
-                            elif library == "KEGG_2021_Human":
-                                len_truth = len(common_kegg)
-                            else:
-                                raise Exception(f"Invalid library: {library}")
     
                             for mode in modes:
                                 mode_suffix = "" if mode == "FDR" else "_common"

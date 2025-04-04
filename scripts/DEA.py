@@ -1,5 +1,6 @@
 import os, sys
 import logging
+import numpy as np
 import pandas as pd
 import rpy2.robjects as ro
 from pathlib import Path
@@ -111,6 +112,12 @@ def run_dea_on_full_data(datasets, DEAs, lfcs, design, overwrite=False, truncate
                         if dea == "deseq2":
                             run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design_i,
                                     cols_to_keep="all", lfc=lfc)
+                        elif dea == "deseq2_ashr" and lfc==0:
+                            run_dea(df_full, respath, method="deseq2", overwrite=overwrite, design=design_i,
+                                    cols_to_keep="all", lfc=lfc, shrink_lfc=True, shrink_method="ashr")
+                        elif dea == "deseq2_apeglm" and lfc==0:
+                            run_dea(df_full, respath, method="deseq2", overwrite=overwrite, design=design_i,
+                                    cols_to_keep="all", lfc=lfc, shrink_lfc=True, shrink_method="apeglm")
                         elif dea == "edgerlrt":
                             run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design_i,
                                     cols_to_keep="all", test="lrt", lfc=lfc)
@@ -120,7 +127,7 @@ def run_dea_on_full_data(datasets, DEAs, lfcs, design, overwrite=False, truncate
                         elif dea == "wilcox":
                             if lfc == 0:
                                 run_dea(df_full, respath, method=dea, overwrite=overwrite, design=design_i)
-                        else:
+                        elif not (dea in ["deseq2_ashr", "deseq2_apeglm"] and lfc!=0):
                             raise Exception(f"Method {dea} not implemented")
 
 

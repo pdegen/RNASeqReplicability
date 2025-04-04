@@ -33,18 +33,18 @@ edgeR_filterByExpression <- function(inpath, outpath, design) {
         N <- ncol(x)/2
         patient <- factor(c(seq(N),seq(N)))
         condition <- factor(c(rep("N",N),rep("T",N))) # normal vs tumor (control vs treatment)
-        design <- model.matrix(~patient+condition)
+        design_mat <- model.matrix(~patient+condition)
     } else if (design=="unpaired") {
         if (ncol(x)%%2 != 0) {stop("Design matrix must have even number of columns")}
         N <- ncol(x)/2
         condition <- factor(c(rep("N",N),rep("T",N))) # normal vs tumor (control vs treatment)
-        design <- model.matrix(~condition)
+        design_mat <- model.matrix(~condition)
     }
     
     if (design == "none")
         keep <- filterByExpr(y)
     else
-        keep <- filterByExpr(y, design=design)
+        keep <- filterByExpr(y, design=design_mat)
     
     y <- y[keep,,keep.lib.sizes=FALSE]
     write.csv(y$counts, outpath, row.names = TRUE)
@@ -162,7 +162,7 @@ run_edgeR <- function(x, outfile, design, overwrite=FALSE, filter_expr=FALSE, to
 
 
 # DESeq2
-run_deseq2 <- function(x, outfile, design="paired", overwrite=FALSE, print_summary=FALSE, cols_to_keep="all", size_factors_only=FALSE, lfc=0) {
+run_deseq2 <- function(x, outfile, design="paired", overwrite=FALSE, print_summary=FALSE, cols_to_keep="all", size_factors_only=FALSE, lfc=0, shrink_lfc=FALSE, shrink_method="apeglm") {
     
     if (!overwrite && file.exists(outfile)) {
         print("Existing table not overwritten")
@@ -170,7 +170,6 @@ run_deseq2 <- function(x, outfile, design="paired", overwrite=FALSE, print_summa
     }
     
     suppressPackageStartupMessages(require("DESeq2"))
-
     if (design == "paired") {
         if (ncol(x)%%2 != 0) {stop("Paired-design matrix must have even number of columns")}
         N <- ncol(x)/2
@@ -232,6 +231,11 @@ run_deseq2 <- function(x, outfile, design="paired", overwrite=FALSE, print_summa
     dds <- DESeq(dds)
     contrastname <- resultsNames(dds)[grepl("Condition", resultsNames(dds))]
     res <- results(dds, name=contrastname, lfcThreshold=lfc, altHypothesis="greaterAbs", test="Wald")
+
+    if (shrink_lfc) {
+        print("shrinking lfc")
+        res <- lfcShrink(dds, coef=contrastname, type=shrink_method, apeMethod="nbinomC")
+        }
     
     if (print_summary) {print(summary(res))}
     

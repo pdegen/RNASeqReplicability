@@ -12,10 +12,25 @@ from datetime import datetime
 import time
 import biomart
 import rpy2.robjects as ro
-from misc import pickler, Timer, open_table
+from misc import pickler, Timer, open_table, open_cohort_count_matrix
 from process import signal_to_noise, get_init_samples_from_cohort
-from DEA import normalize_counts
+from DEA import normalize_counts, run_dea
 
+def convert_yeast_genes(tab):
+    # used https://yeastract.com/orftogene.php for conversion
+    conversion = pd.read_csv("../data/yeast/yeast_conversion.csv",header=0)
+    conversion.columns=["1","2","Standard_name"]
+
+    # Enrichr yeast KEGG gmt
+    # gmt = pd.read_csv("../data/yeast/KEGG_2019.yeast.tsv",sep="\t").values
+    # gmt = [g for g in gmt.flatten() if not g is np.nan]
+    
+    # for col in conversion:
+    #     print(tab["Symbol"].isin(conversion[col]).sum())
+    #     print(len(set(conversion[col]).intersection(set(gmt))))
+    #     print("\n")
+    
+    tab["Symbol"] = tab["Symbol"].replace(dict(zip(conversion["1"], conversion["Standard_name"])))
 
 def get_biomart_data():
     # Set up connection to server                                               
@@ -118,7 +133,6 @@ def prepare_gsea(tab):
     Drop duplicate gene symbols, missing gene symbols, add and sort by logFC
     tab: pd.DataFrame edgeR table
     """
-
     prepared_tab = tab["logFC"]
     nameless = tab[tab.index.get_level_values('Symbol').isin([np.NaN])].index
     prepared_tab = prepared_tab.drop(nameless)
@@ -142,11 +156,27 @@ def run_gseapy(prepared_tab, library, outpath, threads=4, permutation_num=100, f
     prepared_tab: pandas.DataFrame, output of prepare_gsea(tab)
     geneset: str, name of Enrichr library geneset
     """
-    pre_res = gseapy.prerank(rnk=prepared_tab[["Symbol", ranking]], gene_sets=library,
+    gene_sets = library
+    
+    # workaround for yeast data
+    if "yeast" in outpath:
+        fname = f"../data/gseapy/yeast.{library}.txt"
+        if os.path.isfile(fname):
+            with open(fname, "rb") as f:
+                gene_sets = pickle.load(f)
+        else:
+            gss = gseapy.get_library_name(organism='Yeast')
+            gene_sets = gseapy.parser.get_library(library, organism='Yeast')
+            pickler(gene_sets, fname)
+        
+    #display(len(gene_sets))
+    #display(prepared_tab)
+    ranking_no_suffix = ranking.replace("_ashr","").replace("_apeglm","")
+    pre_res = gseapy.prerank(rnk=prepared_tab[["Symbol", ranking_no_suffix]], gene_sets=gene_sets,
                              threads=threads,
                              permutation_num=permutation_num,  # reduce number to speed up testing
                              outdir=outpath, seed=6, no_plot=True, min_size=min_size, max_size=max_size)
-
+    
     terms = pd.read_csv(f"{outpath}/gseapy.gene_set.prerank.report.csv")
     terms.loc[:, 'Term ID'] = terms["Term"].str.split(" \(", expand=True)[1].str[:-1]
     terms.loc[:, 'Term'] = terms["Term"].str.split(" \(", expand=True)[0]
@@ -156,7 +186,7 @@ def run_gseapy(prepared_tab, library, outpath, threads=4, permutation_num=100, f
     if library.startswith("KEGG"):
         terms.drop("Term ID", axis=1, inplace=True)
 
-    fname = f"gseapy.{ranking}.{library}.{file_id}.feather" if file_id != "" else f"{outpath}/gseapy.{ranking}.{library}.feather"
+    fname = f"gseapy.{ranking_no_suffix}.{library}.{file_id}.feather" if file_id != "" else f"{outpath}/gseapy.{ranking_no_suffix}.{library}.feather"
     terms.to_feather(
         f"{outpath}/{fname}")
     os.system(f"rm {outpath}/gseapy.gene_set.prerank.report.csv")
@@ -170,7 +200,11 @@ def run_gseapy_libraries(prepared_tab, gseapath, libraries, overwrite_all_gsea, 
     
     for library in libraries:
         gsea_out = f"{gseapath}/gseapy.{ranking}.{library}.{file_id}.feather" if file_id != "" else f"{outpath}/gseapy.{ranking}.{library}.feather"
-        if not Path(gsea_out).is_file() or overwrite_all_gsea:
+        
+        # since results may be stored in tmp folder and then moved to parent
+        gsea_out_parent = Path(gsea_out).parent / ".." / Path(gsea_out).name 
+        
+        if not (Path(gsea_out).is_file() or Path(gsea_out_parent).is_file()) or overwrite_all_gsea:
             logging.info(library)
             gsea_results = run_gseapy(prepared_tab, library, gseapath, permutation_num=permutation_num,
                                       file_id=file_id, threads=threads, ranking=ranking, min_size=min_size,
@@ -250,7 +284,6 @@ def main_enrich(config, DEA_method, outlier_method, gsea_method, gsea_param_set,
         libraries = config_params["libraries"]
         overwrite = config_params["overwrite"]
         dea_param_set = config_params["dea_param_set"]
-        dea_param_set_lfc = config_params["dea_param_set_lfc"]
         rankings = config_params["rankings"]
 
     for ranking in rankings:
@@ -263,11 +296,28 @@ def main_enrich(config, DEA_method, outlier_method, gsea_method, gsea_param_set,
         conv_table = pd.read_csv(conv_file, index_col=0)
     
         # Load DEA results table
-        logging.info(f"Loading DEA table; timedelta = {datetime.now() - starttime}")
-        if gsea_method == "clusterORA_lfc":
-            tab = open_table(f"{outpath}/tab.{outlier_method}.{DEA_method}.{dea_param_set_lfc}")
+        if "_ashr" in DEA_method or "_apeglm" in DEA_method:
+            if "_ashr" in DEA_method:
+                shrink_method = "ashr"
+            elif "_apeglm" in DEA_method:
+                shrink_method = "apeglm"
+                
+            fname = f"{outpath}/tab.{outlier_method}.deseq2_{shrink_method}.{dea_param_set}.feather"
+                
+            if not (os.path.isfile(fname)):
+                logging.info(f"Estimating shrunken logFC; timedelta = {datetime.now() - starttime}")
+                counts, design = open_cohort_count_matrix(outpath, return_design=True)
+                if design == "custom":
+                    design = outpath + "/covariates.csv"
+                deseq2_kwargs = {"cols_to_keep": ["logFC","logCPM","FDR"], "lfc": 0, 
+                                 "design": design, "shrink_lfc": True, "shrink_method": shrink_method}
+                run_dea(counts, fname, "deseq2", overwrite=False, **deseq2_kwargs)
+            tab = open_table(fname)
         else:
             tab = open_table(f"{outpath}/tab.{outlier_method}.{DEA_method}.{dea_param_set}")
+
+        logging.info(f"Loaded DEA table; timedelta = {datetime.now() - starttime}")
+        tab.dropna(inplace=True)
     
         # Calculate |S2N|
         if config_params["gsea_kwargs"][gsea_method]["ranking"] == "|S2N|":
@@ -275,8 +325,16 @@ def main_enrich(config, DEA_method, outlier_method, gsea_method, gsea_param_set,
             counts = pd.read_csv(config_params["data"], usecols=["Unnamed: 0"] + samples_i, index_col=0)
             counts = normalize_counts(counts)
             tab.loc[counts.index, "|S2N|"] = signal_to_noise(counts)
+
+        if "SNF2" in config_params["data"]: # yeast
+            print("Converting yeast gene names")
+            tab_cleaned = tab
+            tab_cleaned.index.name = "Symbol"
+            tab_cleaned.reset_index(inplace=True)
+            tab_cleaned["Symbol"] = tab_cleaned["Symbol"].str.upper()
+            convert_yeast_genes(tab)
     
-        if tab.index[0].startswith("ENSG"):
+        elif tab.index[0].startswith("ENSG"):
             tab_cleaned = tab.loc[tab.index.intersection(conv_table.index)]
             tab_cleaned["Symbol"] = conv_table.loc[tab_cleaned.index,"Symbol"]
         else: # assume symbol

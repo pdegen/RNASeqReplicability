@@ -1,14 +1,15 @@
 import glob
 import random
 import pickle
+import json
 import warnings
 import sys
 import os
 import pandas as pd
 import numpy as np
 import cProfile as profile
-
 from scipy.stats import entropy
+
 def get_kl_div(reference, subsample, bins=None):
     if bins is None:
         bins = np.linspace(-4,4,50)
@@ -23,7 +24,34 @@ def get_kl_div(reference, subsample, bins=None):
     sub_hist /= sub_hist.sum()
     
     return entropy(sub_hist, ref_hist)
+
+def get_nested_dict_val(my_dict, key):
+    '''Return first value of key in nested dict'''
+    if isinstance(my_dict, dict):
+        if key in my_dict:
+            return my_dict[key]
+        for v in my_dict.values():
+            result = get_nested_dict_val(v, key)
+            if result is not None:
+                return result
+    elif isinstance(my_dict, list):
+        for item in my_dict:
+            result = get_nested_dict_val(item, key)
+            if result is not None:
+                return result
+    return None
     
+def open_cohort_count_matrix(cpath, return_design=False):
+    with open(f"{cpath}/config.json", "rb") as f:
+        c = json.load(f)
+        si = c["samples_i"]
+        design = get_nested_dict_val(c,"design")
+        data = get_nested_dict_val(c,"data")
+        data = data.replace("/storage/homefs/pd21v747/datanew","../data/")
+        counts = pd.read_csv(data, index_col=0)
+        counts = counts[si]
+    return (counts, design) if return_design else counts
+
 def open_table(file):
     """Returns table, agnostic whether file is csv or feather format"""
 

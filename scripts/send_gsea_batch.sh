@@ -24,4 +24,6 @@ mkdir -p $outpath_cohort/gsea/slurm
 
 srun python3 ../scripts/enrichment.py --config $config --DEA_method $3 --outlier_method $4 --gsea_method $5 --gsea_param_set $6
 
-mv slurm-${j}_${SLURM_ARRAY_TASK_ID}.out $outpath_cohort/gsea/slurm/slurm-${j}_${SLURM_ARRAY_TASK_ID}.$4.$3.$5.$6.out
+#mv slurm-${j}_${SLURM_ARRAY_TASK_ID}.out $outpath_cohort/gsea/slurm/slurm-${j}_${SLURM_ARRAY_TASK_ID}.$4.$3.$5.$6.out
+echo "Deleting slurm file"
+rm slurm-${j}_${SLURM_ARRAY_TASK_ID}.out # to avoid hitting file quota, no longer save slurm log files

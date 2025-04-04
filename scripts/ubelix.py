@@ -55,6 +55,8 @@ def adjust_gsea_job_time(N, libraries, gsea_method, gsea_script_path, just_testi
 
     if gsea_method.startswith("gseapy"):
         max_time = 3
+        if "KEGG_2019" in libraries: # yeast
+            max_time = 2
     elif gsea_method.startswith("clusterORA"):
         max_time = 4 + N // 7
     else:
@@ -226,7 +228,7 @@ def run_gsea_batch(config_params, all_N, n_cohorts, libraries, gsea_script_path,
     rankings = config_params['rankings']
     total_jobs = 0
     overwrite = config_params["overwrite"]
-
+    mega_command = ""
     for N in all_N:
 
         outname_N = outname_original + "_N" + str(N)
@@ -255,7 +257,7 @@ def run_gsea_batch(config_params, all_N, n_cohorts, libraries, gsea_script_path,
                             config_params_c["outname"] = outname_c
     
                             # Check if the DEA results table exists
-                            if Path(f"{tabfile_c}.csv").is_file() or Path(f"{tabfile_c}.feather").is_file():
+                            if Path(f"{tabfile_c}.csv").is_file() or Path(f"{tabfile_c}.feather").is_file() or any([DEA.endswith(shrink) for shrink in ["_ashr","_apeglm"]]):
     
                                 gseapath = Path(f"{outpath_c}/gsea")
     
@@ -313,6 +315,7 @@ def run_gsea_batch(config_params, all_N, n_cohorts, libraries, gsea_script_path,
                                         time.sleep(sleep_seconds)
                                 elif mode == "just testing":
                                     logging.info("Just testing...")
+                                    mega_command += command + "; "
     
                             elif mode in ["test main", "test main terminal"]:
                                 from enrichment import main_enrich
@@ -328,3 +331,5 @@ def run_gsea_batch(config_params, all_N, n_cohorts, libraries, gsea_script_path,
                                         os.system(command)
 
     logging.info(f"Total jobs: {total_jobs}")
+    print("\n================\n")
+    print(mega_command)
